@@ -1,0 +1,23 @@
+node_modules/
+dist/
+dist-electron/
+release/
+work/
+coverage/
+*.log
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+credentials.enc.json
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# GitHub accepts this installer as a Release asset, not as a normal Git blob.
+outputs/*.exe
+outputs/*.zip
+outputs/*.blockmap
+outputs/SHA256SUMS.txt
+outputs/RELEASE_NOTES_*.md
