@@ -32,13 +32,14 @@ Project root:
 - Electron 45.1.0 E2E: passed twice with a shared isolated database
 - Real E2E verified renderer, preload, IPC, SQLite restart recovery, screenshots, and OS credential encryption
 - Visual inspection passed in Dark/RTL Persian and Light/LTR English
-- Windows installer build: passed (137,650,039 bytes)
+- Published GitHub Windows installer build: passed (137,650,361 bytes)
 - Isolated silent install to a custom directory: passed with exit code 0
 - Installed application E2E: passed twice with SQLite restart persistence
 - Installed EXE metadata and embedded icon: passed
 - Desktop and Start Menu shortcut targets: passed
 - Silent uninstall and shortcut cleanup: passed with exit code 0
-- Installer SHA-256: `622E6F9AA4EDBD89B95B91837A430445B8A4BE04E6D7EF51EB23CF7EB596BB53`
+- Published GitHub installer SHA-256: `FBAADD858F3B9D3C6ECBF55E4083284427B46D49E51BA6830A5D1AD294BDB19D`
+- The separately built local installer was fully installed, launched twice, and uninstalled; its SHA-256 is `622E6F9AA4EDBD89B95B91837A430445B8A4BE04E6D7EF51EB23CF7EB596BB53`
 - Local Ollama discovered `qwen3:8b`, but inference failed in the external runtime; availability remains `Unknown` rather than being falsely reported as ready
 
 ## Install on Windows
