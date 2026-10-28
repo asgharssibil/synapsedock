@@ -23,7 +23,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/electron-smoke.ps1",
     "build:icon": "node scripts/build-icon.mjs",
-    "dist:win": "npm run build:icon && npm run build && electron-builder --win nsis --x64",
+    "dist:win": "npm run build:icon && npm run build && electron-builder --win nsis --x64 --publish never",
     "release:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-github-release.ps1",
     "release:win": "npm run dist:win && npm run release:prepare",
     "test:watch": "vitest",
