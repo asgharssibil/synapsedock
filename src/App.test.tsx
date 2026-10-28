@@ -25,6 +25,7 @@ const initialSnapshot: WorkspaceSnapshot = {
 let desktop: { [K in keyof DesktopApi]: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
+  localStorage.clear();
   desktop = {
     getSnapshot: vi.fn().mockResolvedValue(initialSnapshot),
     createTask: vi.fn(), runScenario: vi.fn(), testConnection: vi.fn(), testOllama: vi.fn(), getRuntimeInfo: vi.fn(),
@@ -77,5 +78,30 @@ describe('desktop renderer user flows', () => {
     await user.click(screen.getByRole('button', { name: 'EN' }));
     expect(await screen.findByText('Welcome back')).toBeTruthy();
     expect(document.documentElement.dir).toBe('ltr');
+  });
+
+  it('keeps settings visible and persists language and theme choices', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: 'تنظیمات' }));
+    expect(screen.getByRole('heading', { name: 'تنظیمات' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /English/ }));
+    await user.click(screen.getByRole('button', { name: /Light/ }));
+    expect(localStorage.getItem('synapsedock.locale')).toBe('en');
+    expect(localStorage.getItem('synapsedock.theme')).toBe('light');
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
+  it('provides a persistent local coding scratchpad', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: 'فضای کدنویسی' }));
+    const editor = screen.getByLabelText('ویرایشگر کد');
+    await user.clear(editor);
+    await user.type(editor, 'const ready = true;');
+    await user.click(screen.getByRole('button', { name: /ذخیره محلی/ }));
+    expect(localStorage.getItem('synapsedock.code.draft')).toBe('const ready = true;');
   });
 });

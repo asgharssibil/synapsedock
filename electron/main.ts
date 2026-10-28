@@ -11,6 +11,9 @@ let database: WorkspaceDatabase;
 let vault: CredentialVault;
 const smokeDirectory = process.env.UAIW_SMOKE_DIR ? path.resolve(process.env.UAIW_SMOKE_DIR) : undefined;
 const smokeVariant = process.env.UAIW_SMOKE_VARIANT;
+const smokeView = process.env.UAIW_SMOKE_VIEW;
+const smokeCompact = process.env.UAIW_SMOKE_COMPACT === '1';
+const marketingCapture = process.env.UAIW_MARKETING_CAPTURE === '1';
 const developmentMode = process.env.UAIW_DEV_SERVER === '1';
 if (smokeDirectory) app.setPath('userData', path.join(smokeDirectory, 'user-data'));
 
@@ -46,7 +49,7 @@ function registerIpc(): void {
 
 async function createWindow(): Promise<void> {
   const window = new BrowserWindow({
-    width: 1480, height: 940, minWidth: 1100, minHeight: 700,
+    width: smokeCompact ? 1100 : 1480, height: smokeCompact ? 700 : 940, minWidth: 1100, minHeight: 700,
     icon: app.isPackaged ? path.join(process.resourcesPath, 'app-icon.png') : path.join(__dirname, '../../assets/app-icon.png'),
     backgroundColor: '#0b0f14', titleBarStyle: 'hiddenInset', show: !smokeDirectory,
     webPreferences: {
@@ -65,7 +68,13 @@ async function createWindow(): Promise<void> {
       if (${JSON.stringify(smokeVariant)} === 'en-light') {
         document.querySelector('.locale-button')?.click();
         document.querySelector('.icon-button')?.click();
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      const requestedView = ${JSON.stringify(smokeView)};
+      if (requestedView) {
+        document.querySelector('[data-view="' + requestedView + '"]')?.click();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       }
       const runtime = await window.desktop.getRuntimeInfo();
       const before = await window.desktop.getSnapshot();
@@ -74,6 +83,7 @@ async function createWindow(): Promise<void> {
         title: document.title,
         lang: document.documentElement.lang,
         dir: document.documentElement.dir,
+        theme: document.documentElement.dataset.theme,
         hasAppShell: Boolean(document.querySelector('.app-shell')),
         text: document.body.innerText.slice(0, 2000),
         runtime,
@@ -85,6 +95,10 @@ async function createWindow(): Promise<void> {
     })()`);
     await vault.set('smoke-test', 'smoke-secret-value');
     const encryptedCredentialFile = fs.readFileSync(path.join(smokeDirectory, 'user-data', 'credentials.enc.json'), 'utf8');
+    if (marketingCapture) {
+      window.showInactive();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
     const image = await window.webContents.capturePage();
     fs.mkdirSync(smokeDirectory, { recursive: true });
     fs.writeFileSync(path.join(smokeDirectory, 'renderer.png'), image.toPNG());

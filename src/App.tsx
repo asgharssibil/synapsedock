@@ -8,18 +8,19 @@ import {
 import type { ProviderAccount } from './core/types';
 import type { ConnectionTestResult, WorkspaceSnapshot } from './shared/api';
 
-type View = 'dashboard' | 'quota' | 'tasks' | 'connections';
+type View = 'dashboard' | 'quota' | 'tasks' | 'connections' | 'code' | 'settings';
 type Locale = 'fa' | 'en';
+type Theme = 'dark' | 'light';
 
 const nav = [
   { id: 'dashboard', fa: 'نمای کلی', en: 'Overview', icon: LayoutDashboard },
   { id: 'quota', fa: 'سهمیه‌ها', en: 'Quotas', icon: Gauge },
   { id: 'tasks', fa: 'وظایف', en: 'Tasks', icon: ListTodo },
   { id: 'connections', fa: 'اتصال‌ها', en: 'Connections', icon: Network },
+  { id: 'code', fa: 'فضای کدنویسی', en: 'Coding workspace', icon: Code2 },
 ] as const;
 
 const future = [
-  { fa: 'فضای کدنویسی', en: 'Coding workspace', icon: Code2 },
   { fa: 'عامل‌ها', en: 'Agents', icon: Bot },
   { fa: 'اتوماسیون', en: 'Automations', icon: Workflow },
   { fa: 'MCP و افزونه‌ها', en: 'MCP & plugins', icon: Boxes },
@@ -65,11 +66,18 @@ const scenarioLabels = {
   'reset-recovered': ['بازگشت سهمیه → بازیابی', 'Reset → recover'],
 } as const;
 
+function readPreference<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const value = localStorage.getItem(key) as T | null;
+    return value && allowed.includes(value) ? value : fallback;
+  } catch { return fallback; }
+}
+
 export function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
   const [view, setView] = useState<View>('dashboard');
-  const [locale, setLocale] = useState<Locale>('fa');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [locale, setLocale] = useState<Locale>(() => readPreference('synapsedock.locale', ['fa', 'en'], 'fa'));
+  const [theme, setTheme] = useState<Theme>(() => readPreference('synapsedock.theme', ['dark', 'light'], 'dark'));
   const [taskOpen, setTaskOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
@@ -80,6 +88,10 @@ export function App() {
     document.documentElement.dir = locale === 'fa' ? 'rtl' : 'ltr';
     document.documentElement.lang = locale;
     document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem('synapsedock.locale', locale);
+      localStorage.setItem('synapsedock.theme', theme);
+    } catch { /* Preferences still apply for this session. */ }
   }, [locale, theme]);
 
   async function runScenario(scenario: keyof typeof scenarioLabels) {
@@ -95,7 +107,7 @@ export function App() {
         <div className="brand"><div className="brand-mark"><Sparkles size={20} /></div><div><strong>SynapseDock</strong><span>{t.product}</span></div></div>
         <button className="auto-card"><div className="auto-icon"><Zap size={18} /></div><div><strong>{t.auto}</strong><span>{t.autoDesc}</span></div><span className="live-dot">{t.live}</span></button>
         <nav className="primary-nav">
-          {nav.map((item) => <button key={item.id} className={view === item.id ? 'active' : ''} onClick={() => setView(item.id)}><item.icon size={18} /><span>{item[locale]}</span>{view === item.id && <ChevronLeft size={15} className="nav-chevron" />}</button>)}
+          {nav.map((item) => <button key={item.id} data-view={item.id} className={view === item.id ? 'active' : ''} onClick={() => setView(item.id)}><item.icon size={18} /><span>{item[locale]}</span>{view === item.id && <ChevronLeft size={15} className="nav-chevron" />}</button>)}
         </nav>
         <div className="nav-divider" />
         <nav className="future-nav">
@@ -103,7 +115,7 @@ export function App() {
         </nav>
         <div className="sidebar-bottom">
           <button disabled><ShieldCheck size={17} /><span>{locale === 'fa' ? 'امنیت و مجوزها' : 'Security & permissions'}</span></button>
-          <button disabled><Settings size={17} /><span>{locale === 'fa' ? 'تنظیمات' : 'Settings'}</span></button>
+          <button data-view="settings" className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}><Settings size={17} /><span>{locale === 'fa' ? 'تنظیمات' : 'Settings'}</span></button>
           <div className="profile"><div className="avatar">U</div><div><strong>{locale === 'fa' ? 'فضای محلی' : 'Local workspace'}</strong><span>{locale === 'fa' ? 'داده‌ها روی این دستگاه' : 'On-device data'}</span></div><span className="status-dot" /></div>
         </div>
       </aside>
@@ -124,6 +136,8 @@ export function App() {
             {view === 'quota' && <QuotaView accounts={snapshot.accounts} locale={locale} />}
             {view === 'tasks' && <TasksView snapshot={snapshot} locale={locale} />}
             {view === 'connections' && <ConnectionsView snapshot={snapshot} locale={locale} onRefresh={() => window.desktop.getSnapshot().then(setSnapshot)} onNotice={setNotice} />}
+            {view === 'code' && <CodeWorkspace locale={locale} onNotice={setNotice} />}
+            {view === 'settings' && <SettingsView locale={locale} theme={theme} onLocale={setLocale} onTheme={setTheme} onConnections={() => setView('connections')} />}
           </>}
         </section>
       </main>
@@ -184,8 +198,35 @@ function ConnectionsView({ snapshot, locale, onRefresh, onNotice }: { snapshot: 
   async function connect() { setBusy(true); setResult(undefined); try { const next = await window.desktop.testConnection({ provider, apiKey }); setResult(next); if (next.ok) { setApiKey(''); onRefresh(); } } catch (error) { onNotice(error instanceof Error ? error.message : 'Connection failed'); } finally { setBusy(false); } }
   async function ollama() { setBusy(true); const next = await window.desktop.testOllama(); setResult(next); if (next.ok) onRefresh(); setBusy(false); }
   return <><ViewHeading icon={Network} title={t.connections} description={t.connDesc} />
-    <div className="connections-grid"><section className="panel connect-form"><div className="segment">{(['openai', 'google', 'xai'] as const).map((item) => <button className={provider === item ? 'active' : ''} onClick={() => setProvider(item)} key={item}>{item === 'google' ? 'Gemini' : item === 'xai' ? 'xAI' : 'OpenAI'}</button>)}</div><label>{t.apiKey}<input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="••••••••••••••••" autoComplete="off" /></label><button className="primary-button wide" disabled={busy || apiKey.length < 8} onClick={connect}>{busy ? <RefreshCw className="spin" size={17} /> : <ShieldCheck size={17} />}{t.connect}</button><div className="local-connect"><div><strong>Ollama</strong><span>{locale === 'fa' ? 'بدون کلید، فقط روی این دستگاه' : 'No key, this device only'}</span></div><button onClick={ollama} disabled={busy}>{t.localTest}</button></div>{result && <div className={`connection-result ${result.ok ? 'ok' : 'error'}`}>{result.ok ? <Check size={16} /> : <Unplug size={16} />}<span>{result.message}{result.models?.length ? ` · ${result.models.slice(0, 3).join(', ')}` : ''}</span></div>}</section>
+    <div className="credential-guide panel"><ShieldCheck size={21} /><div><strong>{locale === 'fa' ? 'ورود امن حساب' : 'Secure account connection'}</strong><p>{locale === 'fa' ? 'نام کاربری و رمز عبور وب‌سایت را اینجا وارد نکنید. ارائه‌دهنده را انتخاب کنید و فقط API key رسمی آن را در کادر زیر بگذارید. کلید پس از تأیید با رمزنگاری سیستم‌عامل ذخیره می‌شود.' : 'Do not enter a website username or password here. Select a provider and paste only its official API key below. After verification, the key is stored using OS-backed encryption.'}</p></div></div>
+    <div className="connections-grid"><section className="panel connect-form"><div className="segment">{(['openai', 'google', 'xai'] as const).map((item) => <button className={provider === item ? 'active' : ''} onClick={() => setProvider(item)} key={item}>{item === 'google' ? 'Gemini' : item === 'xai' ? 'xAI' : 'OpenAI'}</button>)}</div><label>{t.apiKey}<input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={locale === 'fa' ? 'کلید رسمی API را اینجا وارد کنید' : 'Paste the official API key'} autoComplete="new-password" /></label><p className="field-help">{locale === 'fa' ? 'این برنامه از رمز عبور حساب وب استفاده نمی‌کند.' : 'SynapseDock never asks for your web account password.'}</p><button className="primary-button wide" disabled={busy || apiKey.length < 8} onClick={connect}>{busy ? <RefreshCw className="spin" size={17} /> : <ShieldCheck size={17} />}{t.connect}</button><div className="local-connect"><div><strong>Ollama</strong><span>{locale === 'fa' ? 'بدون کلید، فقط روی این دستگاه' : 'No key, this device only'}</span></div><button onClick={ollama} disabled={busy}>{t.localTest}</button></div>{result && <div className={`connection-result ${result.ok ? 'ok' : 'error'}`}>{result.ok ? <Check size={16} /> : <Unplug size={16} />}<span>{result.message}{result.models?.length ? ` · ${result.models.slice(0, 3).join(', ')}` : ''}</span></div>}</section>
       <section className="panel connection-list"><PanelHeader icon={Network} title={locale === 'fa' ? 'وضعیت اتصال‌ها' : 'Connection status'} />{snapshot.accounts.filter((a) => !a.simulation).map((account) => <ProviderRow account={account} locale={locale} key={account.id} />)}<div className="legal-note"><ShieldCheck size={16} /><p>{locale === 'fa' ? 'اشتراک وب با API یکسان نیست. سهمیهٔ اشتراک فقط از مسیر رسمی و مجاز همان سرویس استفاده می‌شود.' : 'Web subscriptions are not API access. Subscription quota is used only through an explicitly supported official flow.'}</p></div></section></div>
+  </>;
+}
+
+function CodeWorkspace({ locale, onNotice }: { locale: Locale; onNotice: (message: string) => void }) {
+  const [language, setLanguage] = useState(() => readPreference('synapsedock.code.language', ['typescript', 'python', 'powershell', 'text'], 'typescript'));
+  const [draft, setDraft] = useState(() => {
+    try { return localStorage.getItem('synapsedock.code.draft') ?? '// SynapseDock local scratchpad\n'; }
+    catch { return '// SynapseDock local scratchpad\n'; }
+  });
+  function saveDraft() {
+    try {
+      localStorage.setItem('synapsedock.code.draft', draft);
+      localStorage.setItem('synapsedock.code.language', language);
+      onNotice(locale === 'fa' ? 'پیش‌نویس کد روی همین دستگاه ذخیره شد.' : 'Code draft saved on this device.');
+    } catch { onNotice(locale === 'fa' ? 'ذخیره محلی در دسترس نیست.' : 'Local storage is unavailable.'); }
+  }
+  return <><ViewHeading icon={Code2} title={locale === 'fa' ? 'فضای کدنویسی' : 'Coding workspace'} description={locale === 'fa' ? 'ویرایشگر محلی برای نوشتن و نگه‌داری پیش‌نویس کد. اجرای کد هنوز فعال نیست.' : 'A local editor for writing and keeping code drafts. Code execution is not enabled yet.'} />
+    <section className="panel code-workspace"><div className="code-toolbar"><div className="language-tabs">{(['typescript', 'python', 'powershell', 'text'] as const).map((item) => <button className={language === item ? 'active' : ''} onClick={() => setLanguage(item)} key={item}>{item}</button>)}</div><div className="code-actions"><span>{localNumber(draft.split('\n').length, locale)} {locale === 'fa' ? 'خط' : 'lines'}</span><button className="ghost-button" onClick={() => setDraft('')}>{locale === 'fa' ? 'پاک‌کردن' : 'Clear'}</button><button className="primary-button" onClick={saveDraft}><Database size={15} />{locale === 'fa' ? 'ذخیره محلی' : 'Save locally'}</button></div></div><textarea className="code-editor" dir="ltr" aria-label={locale === 'fa' ? 'ویرایشگر کد' : 'Code editor'} spellCheck={false} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); saveDraft(); } }} /><div className="code-boundary"><AlertTriangle size={15} /><span>{locale === 'fa' ? 'این نسخه پیش‌نویس را محلی نگه می‌دارد؛ ترمینال، اجرای کد و دسترسی مستقیم به فایل‌ها هنوز پیاده‌سازی نشده‌اند.' : 'This release keeps drafts locally; terminal execution and direct file access are not implemented yet.'}</span></div></section>
+  </>;
+}
+
+function SettingsView({ locale, theme, onLocale, onTheme, onConnections }: { locale: Locale; theme: Theme; onLocale: (locale: Locale) => void; onTheme: (theme: Theme) => void; onConnections: () => void }) {
+  return <><ViewHeading icon={Settings} title={locale === 'fa' ? 'تنظیمات' : 'Settings'} description={locale === 'fa' ? 'انتخاب‌ها بلافاصله روی این دستگاه ذخیره می‌شوند و پس از بستن برنامه باقی می‌مانند.' : 'Preferences are saved on this device immediately and survive app restarts.'} />
+    <div className="settings-grid"><section className="panel settings-card"><PanelHeader icon={Globe2} title={locale === 'fa' ? 'زبان و جهت' : 'Language & direction'} /><div className="settings-body"><p>{locale === 'fa' ? 'زبان رابط را انتخاب کنید.' : 'Choose the interface language.'}</p><div className="choice-grid"><button className={locale === 'fa' ? 'active' : ''} onClick={() => onLocale('fa')}><strong>فارسی</strong><span>RTL</span></button><button className={locale === 'en' ? 'active' : ''} onClick={() => onLocale('en')}><strong>English</strong><span>LTR</span></button></div></div></section>
+      <section className="panel settings-card"><PanelHeader icon={theme === 'dark' ? Moon : Sun} title={locale === 'fa' ? 'ظاهر' : 'Appearance'} /><div className="settings-body"><p>{locale === 'fa' ? 'پوسته روشن یا تیره را انتخاب کنید.' : 'Choose a light or dark theme.'}</p><div className="choice-grid"><button className={theme === 'dark' ? 'active' : ''} onClick={() => onTheme('dark')}><Moon size={17} /><strong>{locale === 'fa' ? 'تیره' : 'Dark'}</strong></button><button className={theme === 'light' ? 'active' : ''} onClick={() => onTheme('light')}><Sun size={17} /><strong>{locale === 'fa' ? 'روشن' : 'Light'}</strong></button></div></div></section>
+      <section className="panel settings-card settings-wide"><PanelHeader icon={ShieldCheck} title={locale === 'fa' ? 'حساب‌ها و حریم خصوصی' : 'Accounts & privacy'} /><div className="settings-body settings-account"><div><strong>{locale === 'fa' ? 'اتصال با API key رسمی' : 'Connect with an official API key'}</strong><p>{locale === 'fa' ? 'رمز عبور وب‌سایت‌ها در SynapseDock پذیرفته یا ذخیره نمی‌شود.' : 'Website passwords are never accepted or stored by SynapseDock.'}</p></div><button className="primary-button" onClick={onConnections}><Network size={16} />{locale === 'fa' ? 'رفتن به اتصال‌ها' : 'Open Connections'}</button></div></section></div>
   </>;
 }
 
