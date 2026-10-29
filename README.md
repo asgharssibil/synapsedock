@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/asgharssibil/synapsedock/releases/download/v0.1.1/SynapseDock-Setup-0.1.1.exe"><img alt="Download SynapseDock for Windows" src="https://img.shields.io/badge/Download_for_Windows-v0.1.1-6C5CE7?style=for-the-badge&logo=windows"></a>
+  <a href="https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SynapseDock-Setup-0.2.0.exe"><img alt="Download SynapseDock for Windows" src="https://img.shields.io/badge/Download_for_Windows-v0.2.0-6C5CE7?style=for-the-badge&logo=windows"></a>
 </p>
 
 ![SynapseDock social preview](assets/marketing/social-preview.jpg)
@@ -48,7 +48,7 @@ SynapseDock keeps provider health, persistent tasks, quota state, checkpoints, a
   </tr>
 </table>
 
-## What works in v0.1.1
+## What works in v0.2.0
 
 | Area | Implemented |
 | --- | --- |
@@ -57,18 +57,32 @@ SynapseDock keeps provider health, persistent tasks, quota state, checkpoints, a
 | Credentials | OS-backed encrypted storage through Electron `safeStorage` |
 | Routing model | Provider-agnostic quota assessment, free-only policy, and failover selection |
 | Testing lab | Mock quota, exhaustion, waiting, failover, reset, and recovery scenarios |
-| Connection checks | Read-only verification for OpenAI API, Gemini API, xAI API, and local Ollama |
+| Account sign-in | Official ChatGPT system-browser OAuth/PKCE plus an opt-in experimental bridge to the official Claude Code CLI |
+| Connection checks | Read-only verification for 16 official APIs spanning text/code, image/video and audio, plus local Ollama |
 | Experience | Persian/English, RTL/LTR, dark/light, installer shortcuts, and clean uninstall |
 | Preferences | Persistent language and theme settings with a compact-height-safe sidebar |
 | Coding | Local draft editor for TypeScript, Python, PowerShell, and plain text; execution is not yet implemented |
+| Local modules | Clickable Agents, Automations, MCP configuration, Memory, and Security workspaces with on-device persistence |
 
 > [!IMPORTANT]
 > Mock providers are simulations, not real service connections. SynapseDock does not claim access to consumer web subscriptions, and it displays `Unknown` whenever a provider does not expose an exact quota value.
 
+### New in v0.2.0
+
+- Official **Sign in with ChatGPT** through system-browser OAuth/PKCE. Account eligibility still controls whether plan usage is granted.
+- An opt-in **experimental Claude Code bridge**. It invokes Anthropic's official CLI after the user signs in on Claude's official page; SynapseDock does not read Claude cookies, passwords, or stored tokens.
+- Claude verification runs one fixed prompt with Safe Mode, all tools disabled, MCP denied, one turn, no session persistence, and API-key environment variables removed. The bridge is disabled by default and the verification request may consume subscription usage.
+- A **16-provider connection catalog** for text/code, image/video, and audio services, available from both Connections and Settings. It includes Kimi, Mistral, Cohere, DeepSeek, OpenRouter, Groq, Together, Hugging Face, Replicate, Stability AI, Runway, and ElevenLabs in addition to the original four.
+- Agents, Automations, MCP configuration, Memory, and Security are now clickable local workspaces rather than disabled sidebar placeholders. Saving these local definitions does not silently start external work.
+
+SynapseDock intentionally does not implement browser-cookie scraping, consumer-session token extraction, client impersonation, or authentication bypass.
+
+See the [provider catalog](docs/PROVIDERS.md) for connection method, media type, verification boundary, and official references.
+
 ## Install on Windows
 
-1. [Download `SynapseDock-Setup-0.1.1.exe`](https://github.com/asgharssibil/synapsedock/releases/download/v0.1.1/SynapseDock-Setup-0.1.1.exe).
-2. Verify the installer against [`SHA256SUMS.txt`](https://github.com/asgharssibil/synapsedock/releases/download/v0.1.1/SHA256SUMS.txt).
+1. [Download `SynapseDock-Setup-0.2.0.exe`](https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SynapseDock-Setup-0.2.0.exe).
+2. Verify the installer against [`SHA256SUMS.txt`](https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SHA256SUMS.txt).
 3. Run the installer and choose the destination folder.
 
 The current x64 installer is unsigned, so Windows SmartScreen may display an **Unknown publisher** warning. The published checksum file lets you verify the download before running it.
@@ -100,13 +114,13 @@ The automated suite covers routing decisions, quota states, validation, persiste
 
 ## Project status and roadmap
 
-SynapseDock v0.1.1 is an early desktop foundation, not a finished universal AI client. Near-term work focuses on provider integrations, observable long-running execution, stronger checkpoint recovery, code signing, and usability feedback from Windows users.
+SynapseDock v0.2.0 is an early multi-provider desktop foundation, not a finished universal AI client. API credentials can be verified and stored securely, while full generation workflows and autonomous execution remain future work unless explicitly marked implemented.
 
 - [Development state](DEVELOPMENT_STATE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Compatibility matrix](docs/COMPATIBILITY.md)
 - [Security model](docs/SECURITY.md)
-- [Release notes](RELEASE_NOTES_v0.1.1.md)
+- [Release notes](RELEASE_NOTES_v0.2.0.md)
 
 Found a bug or have a workflow SynapseDock should support? [Open an issue](https://github.com/asgharssibil/synapsedock/issues/new) with the Windows version, steps to reproduce, and expected behavior.
 

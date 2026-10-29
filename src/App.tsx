@@ -6,9 +6,10 @@ import {
   Workflow, X, Zap,
 } from 'lucide-react';
 import type { ProviderAccount } from './core/types';
-import type { ConnectionTestResult, WorkspaceSnapshot } from './shared/api';
+import { PROVIDER_CATALOG, providerCatalogItem, type CloudProviderId } from './core/provider-catalog';
+import type { ChatGptConnectionStatus, ClaudeCliStatus, ConnectionTestResult, WorkspaceSnapshot } from './shared/api';
 
-type View = 'dashboard' | 'quota' | 'tasks' | 'connections' | 'code' | 'settings';
+type View = 'dashboard' | 'quota' | 'tasks' | 'connections' | 'code' | 'agents' | 'automations' | 'mcp' | 'memory' | 'security' | 'settings';
 type Locale = 'fa' | 'en';
 type Theme = 'dark' | 'light';
 
@@ -21,10 +22,10 @@ const nav = [
 ] as const;
 
 const future = [
-  { fa: 'عامل‌ها', en: 'Agents', icon: Bot },
-  { fa: 'اتوماسیون', en: 'Automations', icon: Workflow },
-  { fa: 'MCP و افزونه‌ها', en: 'MCP & plugins', icon: Boxes },
-  { fa: 'حافظه', en: 'Memory', icon: MemoryStick },
+  { id: 'agents', fa: 'عامل‌ها', en: 'Agents', icon: Bot },
+  { id: 'automations', fa: 'اتوماسیون', en: 'Automations', icon: Workflow },
+  { id: 'mcp', fa: 'MCP و افزونه‌ها', en: 'MCP & plugins', icon: Boxes },
+  { id: 'memory', fa: 'حافظه', en: 'Memory', icon: MemoryStick },
 ] as const;
 
 const labels = {
@@ -36,7 +37,7 @@ const labels = {
     providers: 'وضعیت ارائه‌دهنده‌ها', viewAll: 'مشاهدهٔ همه', activity: 'رویدادهای اخیر',
     simulation: 'آزمایش موتور Failover', simulationDesc: 'این سناریوها فقط Mock هستند و اتصال واقعی محسوب نمی‌شوند.',
     timeline: 'خط زمانی بازنشانی سهمیه', noReset: 'زمان معتبری گزارش نشده', tasks: 'صف وظایف پایدار',
-    noTasks: 'هنوز وظیفه‌ای ساخته نشده است.', connections: 'اتصال‌های رسمی', connDesc: 'کلیدها فقط در Main Process و با رمزنگاری سیستم‌عامل ذخیره می‌شوند.',
+    noTasks: 'هنوز وظیفه‌ای ساخته نشده است.', connections: 'اتصال‌های رسمی', connDesc: 'ورود در صفحه رسمی سرویس انجام می‌شود؛ کلیدها و توکن‌ها با رمزنگاری سیستم‌عامل ذخیره می‌شوند.',
     quota: 'داشبورد سهمیه', quotaDesc: 'درصد فقط وقتی نمایش داده می‌شود که منبع معتبر یا Mock مشخص داشته باشد.',
     coming: 'در حال توسعه', theme: 'تغییر پوسته', free: 'فقط رایگان', cancel: 'انصراف', create: 'ساخت وظیفه',
     title: 'عنوان', goal: 'هدف و معیار پایان', connect: 'بررسی و اتصال', apiKey: 'کلید API', localTest: 'بررسی Ollama محلی',
@@ -50,7 +51,7 @@ const labels = {
     providers: 'Provider status', viewAll: 'View all', activity: 'Recent activity',
     simulation: 'Failover engine lab', simulationDesc: 'These are mock scenarios and never count as real connections.',
     timeline: 'Quota reset timeline', noReset: 'No verified reset reported', tasks: 'Persistent task queue',
-    noTasks: 'No tasks have been created yet.', connections: 'Official connections', connDesc: 'Keys stay in the main process and use OS-backed encryption.',
+    noTasks: 'No tasks have been created yet.', connections: 'Official connections', connDesc: 'Sign-in happens on the provider page; keys and tokens stay encrypted in the main process.',
     quota: 'Quota dashboard', quotaDesc: 'A percentage appears only when its source is known or explicitly simulated.',
     coming: 'In development', theme: 'Toggle theme', free: 'Free only', cancel: 'Cancel', create: 'Create task',
     title: 'Title', goal: 'Goal and completion criteria', connect: 'Verify & connect', apiKey: 'API key', localTest: 'Test local Ollama',
@@ -58,7 +59,7 @@ const labels = {
   },
 } as const;
 
-const providerTone: Record<string, string> = { mock: 'violet', openai: 'mint', anthropic: 'amber', google: 'blue', xai: 'slate', ollama: 'rose' };
+const providerTone: Record<string, string> = { mock: 'violet', openai: 'mint', anthropic: 'amber', google: 'blue', xai: 'slate', ollama: 'rose', replicate: 'violet', stability: 'blue', runway: 'rose', elevenlabs: 'amber' };
 const scenarioLabels = {
   'gpt-90': ['GPT → ۹۰٪', 'GPT → 90%'],
   'claude-exhausted': ['Claude → پایان سهمیه', 'Claude → exhausted'],
@@ -111,10 +112,10 @@ export function App() {
         </nav>
         <div className="nav-divider" />
         <nav className="future-nav">
-          {future.map((item) => <button key={item.en} disabled title={t.coming}><item.icon size={17} /><span>{item[locale]}</span><small>{t.coming}</small></button>)}
+          {future.map((item) => <button key={item.id} data-view={item.id} className={view === item.id ? 'active' : ''} onClick={() => setView(item.id)}><item.icon size={17} /><span>{item[locale]}</span><small>{locale === 'fa' ? 'محلی' : 'Local'}</small></button>)}
         </nav>
         <div className="sidebar-bottom">
-          <button disabled><ShieldCheck size={17} /><span>{locale === 'fa' ? 'امنیت و مجوزها' : 'Security & permissions'}</span></button>
+          <button data-view="security" className={view === 'security' ? 'active' : ''} onClick={() => setView('security')}><ShieldCheck size={17} /><span>{locale === 'fa' ? 'امنیت و مجوزها' : 'Security & permissions'}</span></button>
           <button data-view="settings" className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}><Settings size={17} /><span>{locale === 'fa' ? 'تنظیمات' : 'Settings'}</span></button>
           <div className="profile"><div className="avatar">U</div><div><strong>{locale === 'fa' ? 'فضای محلی' : 'Local workspace'}</strong><span>{locale === 'fa' ? 'داده‌ها روی این دستگاه' : 'On-device data'}</span></div><span className="status-dot" /></div>
         </div>
@@ -137,7 +138,12 @@ export function App() {
             {view === 'tasks' && <TasksView snapshot={snapshot} locale={locale} />}
             {view === 'connections' && <ConnectionsView snapshot={snapshot} locale={locale} onRefresh={() => window.desktop.getSnapshot().then(setSnapshot)} onNotice={setNotice} />}
             {view === 'code' && <CodeWorkspace locale={locale} onNotice={setNotice} />}
-            {view === 'settings' && <SettingsView locale={locale} theme={theme} onLocale={setLocale} onTheme={setTheme} onConnections={() => setView('connections')} />}
+            {view === 'agents' && <LocalModuleView kind="agents" locale={locale} onNotice={setNotice} />}
+            {view === 'automations' && <LocalModuleView kind="automations" locale={locale} onNotice={setNotice} />}
+            {view === 'mcp' && <LocalModuleView kind="mcp" locale={locale} onNotice={setNotice} />}
+            {view === 'memory' && <LocalModuleView kind="memory" locale={locale} onNotice={setNotice} />}
+            {view === 'security' && <SecurityView locale={locale} />}
+            {view === 'settings' && <SettingsView locale={locale} theme={theme} onLocale={setLocale} onTheme={setTheme} onConnections={() => setView('connections')} onRefresh={() => window.desktop.getSnapshot().then(setSnapshot)} onNotice={setNotice} />}
           </>}
         </section>
       </main>
@@ -193,15 +199,63 @@ function TasksView({ snapshot, locale }: { snapshot: WorkspaceSnapshot; locale: 
 
 function ConnectionsView({ snapshot, locale, onRefresh, onNotice }: { snapshot: WorkspaceSnapshot; locale: Locale; onRefresh: () => void; onNotice: (s: string) => void }) {
   const t = labels[locale];
-  const [provider, setProvider] = useState<'openai' | 'google' | 'xai'>('openai');
-  const [apiKey, setApiKey] = useState(''); const [busy, setBusy] = useState(false); const [result, setResult] = useState<ConnectionTestResult>();
-  async function connect() { setBusy(true); setResult(undefined); try { const next = await window.desktop.testConnection({ provider, apiKey }); setResult(next); if (next.ok) { setApiKey(''); onRefresh(); } } catch (error) { onNotice(error instanceof Error ? error.message : 'Connection failed'); } finally { setBusy(false); } }
-  async function ollama() { setBusy(true); const next = await window.desktop.testOllama(); setResult(next); if (next.ok) onRefresh(); setBusy(false); }
+  const [busy, setBusy] = useState(false);
+  const [chatGpt, setChatGpt] = useState<ChatGptConnectionStatus>({ connected: false, planUsage: false });
+  const [claudeCli, setClaudeCli] = useState<ClaudeCliStatus>({ enabled: false, installed: false, loggedIn: false });
+  const [claudeLoading, setClaudeLoading] = useState(true);
+  useEffect(() => {
+    void window.desktop.getChatGptStatus().then(setChatGpt).catch(() => undefined);
+    void window.desktop.getClaudeCliStatus().then(setClaudeCli).catch(() => undefined).finally(() => setClaudeLoading(false));
+  }, []);
+  async function signInChatGpt() { setBusy(true); try { setChatGpt(await window.desktop.signInChatGpt()); onRefresh(); } catch (error) { onNotice(error instanceof Error ? error.message : 'ChatGPT sign-in failed'); } finally { setBusy(false); } }
+  async function signOutChatGpt() { setBusy(true); try { const next = await window.desktop.signOutChatGpt(); setChatGpt({ connected: false, planUsage: false }); onRefresh(); onNotice(next.remoteRevoked ? (locale === 'fa' ? 'اتصال ChatGPT با موفقیت لغو شد.' : 'ChatGPT connection revoked.') : (locale === 'fa' ? 'اتصال محلی حذف شد؛ وضعیت لغو از راه دور تأیید نشد.' : 'Local connection removed; remote revocation was not confirmed.')); } finally { setBusy(false); } }
+  async function toggleClaude(enabled: boolean) { setBusy(true); try { setClaudeCli(await window.desktop.setClaudeCliEnabled(enabled)); onRefresh(); } catch (error) { onNotice(error instanceof Error ? error.message : 'Claude connector update failed'); } finally { setBusy(false); } }
+  async function loginClaude() { setBusy(true); try { const next = await window.desktop.startClaudeCliLogin(); onNotice(locale === 'fa' ? (next.launched ? 'پنجره ورود رسمی Claude باز شد. بعد از ورود، «بررسی وضعیت» را بزنید.' : next.message) : next.message); } catch (error) { onNotice(error instanceof Error ? error.message : 'Claude login failed'); } finally { setBusy(false); } }
+  async function refreshClaude() { setBusy(true); try { setClaudeCli(await window.desktop.getClaudeCliStatus()); } finally { setBusy(false); } }
+  async function verifyClaude() { setBusy(true); try { const next = await window.desktop.verifyClaudeCli(); onNotice(locale === 'fa' ? (next.ok ? 'اتصال Claude با یک درخواست محدود تأیید شد.' : next.message) : next.message); if (next.ok) onRefresh(); } catch (error) { onNotice(error instanceof Error ? error.message : 'Claude verification failed'); } finally { setBusy(false); } }
   return <><ViewHeading icon={Network} title={t.connections} description={t.connDesc} />
-    <div className="credential-guide panel"><ShieldCheck size={21} /><div><strong>{locale === 'fa' ? 'ورود امن حساب' : 'Secure account connection'}</strong><p>{locale === 'fa' ? 'نام کاربری و رمز عبور وب‌سایت را اینجا وارد نکنید. ارائه‌دهنده را انتخاب کنید و فقط API key رسمی آن را در کادر زیر بگذارید. کلید پس از تأیید با رمزنگاری سیستم‌عامل ذخیره می‌شود.' : 'Do not enter a website username or password here. Select a provider and paste only its official API key below. After verification, the key is stored using OS-backed encryption.'}</p></div></div>
-    <div className="connections-grid"><section className="panel connect-form"><div className="segment">{(['openai', 'google', 'xai'] as const).map((item) => <button className={provider === item ? 'active' : ''} onClick={() => setProvider(item)} key={item}>{item === 'google' ? 'Gemini' : item === 'xai' ? 'xAI' : 'OpenAI'}</button>)}</div><label>{t.apiKey}<input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={locale === 'fa' ? 'کلید رسمی API را اینجا وارد کنید' : 'Paste the official API key'} autoComplete="new-password" /></label><p className="field-help">{locale === 'fa' ? 'این برنامه از رمز عبور حساب وب استفاده نمی‌کند.' : 'SynapseDock never asks for your web account password.'}</p><button className="primary-button wide" disabled={busy || apiKey.length < 8} onClick={connect}>{busy ? <RefreshCw className="spin" size={17} /> : <ShieldCheck size={17} />}{t.connect}</button><div className="local-connect"><div><strong>Ollama</strong><span>{locale === 'fa' ? 'بدون کلید، فقط روی این دستگاه' : 'No key, this device only'}</span></div><button onClick={ollama} disabled={busy}>{t.localTest}</button></div>{result && <div className={`connection-result ${result.ok ? 'ok' : 'error'}`}>{result.ok ? <Check size={16} /> : <Unplug size={16} />}<span>{result.message}{result.models?.length ? ` · ${result.models.slice(0, 3).join(', ')}` : ''}</span></div>}</section>
+    <div className="credential-guide panel"><ShieldCheck size={21} /><div><strong>{locale === 'fa' ? 'ورود امن حساب‌های AI' : 'Secure AI account sign-in'}</strong><p>{locale === 'fa' ? 'دکمه ورود را بزنید؛ صفحه رسمی سرویس در مرورگر باز می‌شود و ایمیل، رمز و 2FA را همان‌جا وارد می‌کنید. SynapseDock رمز عبور را نمی‌بیند یا ذخیره نمی‌کند.' : 'Choose sign in to open the provider’s official page in your browser. Enter email, password, and 2FA there; SynapseDock never sees or stores the password.'}</p></div></div>
+    <section className="panel subscription-panel"><PanelHeader icon={Globe2} title={locale === 'fa' ? 'اتصال رسمی اشتراک' : 'Official subscription connections'} /><div className="subscription-grid"><article className="subscription-card"><div className="provider-logo mint"><Sparkles size={18} /></div><div><strong>ChatGPT</strong><span>{chatGpt.connected ? (chatGpt.email ?? chatGpt.name ?? (locale === 'fa' ? 'حساب متصل' : 'Connected account')) : (locale === 'fa' ? 'ورود رسمی با مرورگر و OAuth' : 'Official browser sign-in with OAuth')}</span>{chatGpt.connected && <small className={chatGpt.planUsage ? 'permission-ok' : 'permission-warn'}>{chatGpt.planUsage ? (locale === 'fa' ? 'مجوز استفاده از پلن فعال است' : 'Plan usage permission granted') : (locale === 'fa' ? 'هویت متصل است؛ مجوز پلن داده نشده' : 'Identity connected; plan usage not granted')}</small>}</div>{chatGpt.connected ? <button className="ghost-button" disabled={busy} onClick={signOutChatGpt}>{locale === 'fa' ? 'خروج' : 'Disconnect'}</button> : <button className="primary-button" disabled={busy} onClick={signInChatGpt}>{busy ? <RefreshCw className="spin" size={15} /> : <Globe2 size={15} />}Continue with ChatGPT</button>}</article>
+      <article className={`subscription-card claude-experimental ${claudeCli.enabled ? '' : 'muted'}`}><div className="provider-logo amber"><Bot size={18} /></div><div><strong>Claude Pro / Max <em>EXPERIMENTAL</em></strong><span>{claudeLoading ? (locale === 'fa' ? 'در حال بررسی Claude Code…' : 'Checking Claude Code…') : !claudeCli.installed ? (locale === 'fa' ? 'Claude Code رسمی روی دستگاه پیدا نشد' : 'Official Claude Code was not found') : claudeCli.loggedIn ? `${claudeCli.authMethod} · ${claudeCli.version ?? ''}` : (locale === 'fa' ? 'Claude Code نصب است؛ هنوز وارد حساب نشده‌اید' : 'Claude Code is installed; sign-in is required')}</span><small className="permission-warn">{locale === 'fa' ? 'پل SynapseDock غیررسمی است؛ ممکن است با تغییر CLI از کار بیفتد و درخواست تأیید از سهمیه کم می‌کند.' : 'The SynapseDock bridge is unofficial; CLI changes may break it and verification consumes plan usage.'}</small></div><div className="subscription-actions">{!claudeCli.enabled ? <button className="warning-button" disabled={busy || claudeLoading} onClick={() => toggleClaude(true)}>{locale === 'fa' ? 'پذیرش ریسک و فعال‌سازی' : 'Accept risk & enable'}</button> : <>{claudeCli.installed && !claudeCli.loggedIn && <button className="primary-button" disabled={busy} onClick={loginClaude}>{locale === 'fa' ? 'ورود رسمی Claude' : 'Official Claude login'}</button>}<button className="ghost-button" disabled={busy} onClick={refreshClaude}>{locale === 'fa' ? 'بررسی وضعیت' : 'Refresh status'}</button>{claudeCli.loggedIn && <button className="primary-button" disabled={busy} onClick={verifyClaude}>{locale === 'fa' ? 'تأیید با یک درخواست' : 'Verify with one request'}</button>}<button className="text-button danger" disabled={busy} onClick={() => toggleClaude(false)}>{locale === 'fa' ? 'غیرفعال' : 'Disable'}</button></>}</div></article>
+      <article className="subscription-card"><div className="provider-logo blue"><Bot size={18} /></div><div><strong>Gemini / Google</strong><span>{locale === 'fa' ? 'اتصال رسمی با API Key در کاتالوگ پایین فعال است؛ OAuth ناشر جداگانه می‌خواهد.' : 'Official API-key connection is active below; account OAuth requires separate publisher setup.'}</span></div><small className="permission-ok">{locale === 'fa' ? 'API فعال' : 'API active'}</small></article>
+      <article className="subscription-card"><div className="provider-logo slate"><Bot size={18} /></div><div><strong>Grok / xAI</strong><span>{locale === 'fa' ? 'اتصال رسمی xAI API در کاتالوگ پایین فعال است؛ اشتراک وب با API یکی نیست.' : 'Official xAI API connection is active below; the web subscription is separate.'}</span></div><small className="permission-ok">{locale === 'fa' ? 'API فعال' : 'API active'}</small></article></div><p className="subscription-note">{locale === 'fa' ? 'استفاده از پلن ChatGPT در برنامه‌های شخص ثالث در وضعیت preview است. اتصال آزمایشی Claude فقط CLI رسمی را اجرا می‌کند؛ SynapseDock کوکی، رمز یا توکن Claude را نمی‌خواند.' : 'ChatGPT plan usage in third-party apps is in preview. The experimental Claude bridge only invokes the official CLI; SynapseDock never reads Claude cookies, passwords, or tokens.'}</p></section>
+    <h2 className="connection-section-title">{locale === 'fa' ? `${localNumber(PROVIDER_CATALOG.length, locale)} اتصال رسمی متن، کد، تصویر، ویدئو و صدا` : `${PROVIDER_CATALOG.length} official text, code, image, video and audio connections`}</h2>
+    <div className="connections-grid"><ApiConnectionForm locale={locale} onRefresh={onRefresh} onNotice={onNotice} />
       <section className="panel connection-list"><PanelHeader icon={Network} title={locale === 'fa' ? 'وضعیت اتصال‌ها' : 'Connection status'} />{snapshot.accounts.filter((a) => !a.simulation).map((account) => <ProviderRow account={account} locale={locale} key={account.id} />)}<div className="legal-note"><ShieldCheck size={16} /><p>{locale === 'fa' ? 'اشتراک وب با API یکسان نیست. سهمیهٔ اشتراک فقط از مسیر رسمی و مجاز همان سرویس استفاده می‌شود.' : 'Web subscriptions are not API access. Subscription quota is used only through an explicitly supported official flow.'}</p></div></section></div>
   </>;
+}
+
+function ApiConnectionForm({ locale, onRefresh, onNotice }: { locale: Locale; onRefresh: () => void; onNotice: (message: string) => void }) {
+  const t = labels[locale];
+  const [provider, setProvider] = useState<CloudProviderId>('openai');
+  const [apiKey, setApiKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ConnectionTestResult>();
+  const selected = providerCatalogItem(provider);
+  async function connect() {
+    setBusy(true); setResult(undefined);
+    try {
+      const next = await window.desktop.testConnection({ provider, apiKey });
+      setResult(next);
+      if (next.ok) { setApiKey(''); onRefresh(); }
+    } catch (error) { onNotice(error instanceof Error ? error.message : 'Connection failed'); }
+    finally { setBusy(false); }
+  }
+  async function ollama() {
+    setBusy(true);
+    try { const next = await window.desktop.testOllama(); setResult(next); if (next.ok) onRefresh(); }
+    finally { setBusy(false); }
+  }
+  return <section className="panel connect-form provider-catalog-panel">
+    <div className="catalog-heading"><div><strong>{locale === 'fa' ? 'کاتالوگ ارائه‌دهنده‌ها' : 'Provider catalog'}</strong><span>{locale === 'fa' ? 'یک سرویس را انتخاب و کلید رسمی همان سرویس را وارد کنید.' : 'Select a service and enter its official credential.'}</span></div><b>{PROVIDER_CATALOG.length}</b></div>
+    <div className="provider-catalog-grid">{PROVIDER_CATALOG.map((item) => <button type="button" className={provider === item.id ? 'active' : ''} onClick={() => { setProvider(item.id); setResult(undefined); }} key={item.id}><ProviderLogo provider={item.id} /><span><strong>{item.name}</strong><small>{item.category === 'text-code' ? (locale === 'fa' ? 'متن و کد' : 'Text & code') : item.category === 'image-video' ? (locale === 'fa' ? 'تصویر و ویدئو' : 'Image & video') : (locale === 'fa' ? 'صدا' : 'Audio')} · {item.freeTier}</small></span></button>)}</div>
+    <div className="selected-provider"><ProviderLogo provider={provider} /><div><strong>{selected.name}</strong><span>{selected.capabilities.join(' · ')}</span></div></div>
+    <label>{locale === 'fa' ? (selected.credential === 'access token' ? 'توکن دسترسی' : 'کلید API') : selected.credential}<input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={locale === 'fa' ? `کلید رسمی ${selected.name}` : `Official ${selected.name} credential`} autoComplete="new-password" /></label>
+    <p className="field-help">{locale === 'fa' ? 'فقط یک درخواست خواندنی برای اعتبارسنجی ارسال می‌شود؛ تولید محتوا و هزینه آزمایش نمی‌شود.' : 'Only a read-only validation request is sent; generation and billing are not tested.'}</p>
+    <button className="primary-button wide" disabled={busy || apiKey.length < 8} onClick={connect}>{busy ? <RefreshCw className="spin" size={17} /> : <ShieldCheck size={17} />}{t.connect}</button>
+    <div className="local-connect"><div><strong>Ollama</strong><span>{locale === 'fa' ? 'بدون کلید، فقط روی این دستگاه' : 'No key, this device only'}</span></div><button onClick={ollama} disabled={busy}>{t.localTest}</button></div>
+    {result && <div className={`connection-result ${result.ok ? 'ok' : 'error'}`}>{result.ok ? <Check size={16} /> : <Unplug size={16} />}<span>{result.message}{result.models?.length ? ` · ${result.models.slice(0, 3).join(', ')}` : ''}</span></div>}
+  </section>;
 }
 
 function CodeWorkspace({ locale, onNotice }: { locale: Locale; onNotice: (message: string) => void }) {
@@ -222,11 +276,49 @@ function CodeWorkspace({ locale, onNotice }: { locale: Locale; onNotice: (messag
   </>;
 }
 
-function SettingsView({ locale, theme, onLocale, onTheme, onConnections }: { locale: Locale; theme: Theme; onLocale: (locale: Locale) => void; onTheme: (theme: Theme) => void; onConnections: () => void }) {
+type LocalModuleKind = 'agents' | 'automations' | 'mcp' | 'memory';
+const localModuleInfo: Record<LocalModuleKind, { icon: typeof Bot; fa: string; en: string; faDesc: string; enDesc: string; placeholder: string }> = {
+  agents: { icon: Bot, fa: 'عامل‌ها', en: 'Agents', faDesc: 'پروفایل عامل‌ها را محلی تعریف کنید؛ هر خط یک عامل و نقش آن است.', enDesc: 'Define local agent profiles; one agent and role per line.', placeholder: 'Reviewer | Reviews code without editing\nResearcher | Collects cited sources' },
+  automations: { icon: Workflow, fa: 'اتوماسیون', en: 'Automations', faDesc: 'دستورهای تکرارشونده را محلی ثبت کنید. اجرای زمان‌بندی‌شده پس از اتصال موتور کار انجام می‌شود.', enDesc: 'Store recurring workflow definitions locally. Scheduled execution requires a connected worker.', placeholder: 'Daily review | 09:00 | Review queued tasks' },
+  mcp: { icon: Boxes, fa: 'MCP و افزونه‌ها', en: 'MCP & plugins', faDesc: 'پیکربندی JSON سرورهای MCP را نگه‌داری و پیش از اتصال بررسی کنید.', enDesc: 'Keep and validate MCP server JSON before any connection is attempted.', placeholder: '{\n  "mcpServers": {}\n}' },
+  memory: { icon: MemoryStick, fa: 'حافظه', en: 'Memory', faDesc: 'یادداشت‌های فضای کار فقط روی این دستگاه ذخیره می‌شوند.', enDesc: 'Workspace memory notes are stored only on this device.', placeholder: 'Project decisions, conventions, and context…' },
+};
+
+function LocalModuleView({ kind, locale, onNotice }: { kind: LocalModuleKind; locale: Locale; onNotice: (message: string) => void }) {
+  const info = localModuleInfo[kind];
+  const key = `synapsedock.module.${kind}`;
+  const [value, setValue] = useState(() => { try { return localStorage.getItem(key) ?? (kind === 'mcp' ? info.placeholder : ''); } catch { return ''; } });
+  function save() {
+    if (kind === 'mcp') {
+      try { JSON.parse(value); } catch { onNotice(locale === 'fa' ? 'JSON مربوط به MCP معتبر نیست.' : 'MCP JSON is invalid.'); return; }
+    }
+    try { localStorage.setItem(key, value); onNotice(locale === 'fa' ? 'تنظیمات محلی ذخیره شد.' : 'Local module settings saved.'); }
+    catch { onNotice(locale === 'fa' ? 'ذخیره محلی در دسترس نیست.' : 'Local storage is unavailable.'); }
+  }
+  return <><ViewHeading icon={info.icon} title={info[locale]} description={locale === 'fa' ? info.faDesc : info.enDesc} /><section className="panel local-module"><PanelHeader icon={info.icon} title={locale === 'fa' ? 'پیکربندی محلی' : 'Local configuration'} /><div className="local-module-body"><textarea dir={kind === 'mcp' ? 'ltr' : undefined} rows={14} value={value} placeholder={info.placeholder} onChange={(event) => setValue(event.target.value)} aria-label={info[locale]} /><div className="module-actions"><span><ShieldCheck size={15} />{locale === 'fa' ? 'هیچ اتصال خارجی با ذخیره این فرم ایجاد نمی‌شود.' : 'Saving this form creates no external connection.'}</span><button className="ghost-button" onClick={() => setValue('')}>{locale === 'fa' ? 'پاک‌کردن' : 'Clear'}</button><button className="primary-button" onClick={save}><Database size={15} />{locale === 'fa' ? 'ذخیره' : 'Save'}</button></div></div></section></>;
+}
+
+function SecurityView({ locale }: { locale: Locale }) {
+  const rows = locale === 'fa' ? [
+    ['رمزها و کلیدها', 'رمزنگاری سیستم‌عامل؛ هرگز در Renderer یا لاگ برگردانده نمی‌شوند'],
+    ['مرورگر و مجوزها', 'پنجره جدید، ناوبری ناخواسته و مجوزهای Electron به‌صورت پیش‌فرض مسدود است'],
+    ['Claude آزمایشی', 'خاموش به‌صورت پیش‌فرض؛ بدون خواندن کوکی یا فایل اعتبارنامه'],
+    ['بررسی API', 'فقط endpoint خواندنی؛ بدون تولید محتوا و بدون هزینه آزمایشی'],
+  ] : [
+    ['Passwords and keys', 'OS encryption; never returned to the renderer or logs'],
+    ['Browser and permissions', 'New windows, unexpected navigation and Electron permissions are denied by default'],
+    ['Experimental Claude', 'Off by default; no cookie or credential-file reading'],
+    ['API verification', 'Read-only endpoints only; no generation or test charge'],
+  ];
+  return <><ViewHeading icon={ShieldCheck} title={locale === 'fa' ? 'امنیت و مجوزها' : 'Security & permissions'} description={locale === 'fa' ? 'مرزهای امنیتی فعال برنامه را یک‌جا ببینید.' : 'Review the app’s active security boundaries.'} /><section className="panel security-grid">{rows.map(([title, detail]) => <article key={title}><ShieldCheck size={19} /><div><strong>{title}</strong><p>{detail}</p></div><Check size={16} /></article>)}</section></>;
+}
+
+function SettingsView({ locale, theme, onLocale, onTheme, onConnections, onRefresh, onNotice }: { locale: Locale; theme: Theme; onLocale: (locale: Locale) => void; onTheme: (theme: Theme) => void; onConnections: () => void; onRefresh: () => void; onNotice: (message: string) => void }) {
   return <><ViewHeading icon={Settings} title={locale === 'fa' ? 'تنظیمات' : 'Settings'} description={locale === 'fa' ? 'انتخاب‌ها بلافاصله روی این دستگاه ذخیره می‌شوند و پس از بستن برنامه باقی می‌مانند.' : 'Preferences are saved on this device immediately and survive app restarts.'} />
     <div className="settings-grid"><section className="panel settings-card"><PanelHeader icon={Globe2} title={locale === 'fa' ? 'زبان و جهت' : 'Language & direction'} /><div className="settings-body"><p>{locale === 'fa' ? 'زبان رابط را انتخاب کنید.' : 'Choose the interface language.'}</p><div className="choice-grid"><button className={locale === 'fa' ? 'active' : ''} onClick={() => onLocale('fa')}><strong>فارسی</strong><span>RTL</span></button><button className={locale === 'en' ? 'active' : ''} onClick={() => onLocale('en')}><strong>English</strong><span>LTR</span></button></div></div></section>
       <section className="panel settings-card"><PanelHeader icon={theme === 'dark' ? Moon : Sun} title={locale === 'fa' ? 'ظاهر' : 'Appearance'} /><div className="settings-body"><p>{locale === 'fa' ? 'پوسته روشن یا تیره را انتخاب کنید.' : 'Choose a light or dark theme.'}</p><div className="choice-grid"><button className={theme === 'dark' ? 'active' : ''} onClick={() => onTheme('dark')}><Moon size={17} /><strong>{locale === 'fa' ? 'تیره' : 'Dark'}</strong></button><button className={theme === 'light' ? 'active' : ''} onClick={() => onTheme('light')}><Sun size={17} /><strong>{locale === 'fa' ? 'روشن' : 'Light'}</strong></button></div></div></section>
-      <section className="panel settings-card settings-wide"><PanelHeader icon={ShieldCheck} title={locale === 'fa' ? 'حساب‌ها و حریم خصوصی' : 'Accounts & privacy'} /><div className="settings-body settings-account"><div><strong>{locale === 'fa' ? 'اتصال با API key رسمی' : 'Connect with an official API key'}</strong><p>{locale === 'fa' ? 'رمز عبور وب‌سایت‌ها در SynapseDock پذیرفته یا ذخیره نمی‌شود.' : 'Website passwords are never accepted or stored by SynapseDock.'}</p></div><button className="primary-button" onClick={onConnections}><Network size={16} />{locale === 'fa' ? 'رفتن به اتصال‌ها' : 'Open Connections'}</button></div></section></div>
+      <section className="panel settings-card settings-wide"><PanelHeader icon={ShieldCheck} title={locale === 'fa' ? 'حساب‌ها و حریم خصوصی' : 'Accounts & privacy'} /><div className="settings-body settings-account"><div><strong>{locale === 'fa' ? 'ورود رسمی حساب یا اتصال API' : 'Official account sign-in or API connection'}</strong><p>{locale === 'fa' ? 'ورود حساب در صفحه رسمی سرویس انجام می‌شود؛ رمز عبور هرگز وارد SynapseDock نمی‌شود.' : 'Account authentication happens on the provider’s official page; passwords never enter SynapseDock.'}</p></div><button className="primary-button" onClick={onConnections}><Network size={16} />{locale === 'fa' ? 'ورودهای اشتراکی' : 'Subscription sign-ins'}</button></div></section>
+      <div className="settings-wide"><h2 className="connection-section-title">{locale === 'fa' ? 'اتصال مستقیم ارائه‌دهنده از تنظیمات' : 'Connect a provider directly from Settings'}</h2><ApiConnectionForm locale={locale} onRefresh={onRefresh} onNotice={onNotice} /></div></div>
   </>;
 }
 

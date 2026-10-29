@@ -1,9 +1,9 @@
-export type ProviderId = 'openai' | 'anthropic' | 'google' | 'xai' | 'ollama' | 'mock';
+export type ProviderId = 'openai' | 'anthropic' | 'google' | 'xai' | 'mistral' | 'cohere' | 'deepseek' | 'kimi' | 'openrouter' | 'groq' | 'together' | 'huggingface' | 'replicate' | 'stability' | 'runway' | 'elevenlabs' | 'ollama' | 'mock';
 export type Availability = 'available' | 'limited' | 'exhausted' | 'reset-pending' | 'unknown' | 'revoked';
 export type QuotaSource = 'official-api' | 'official-cli' | 'response-headers' | 'local-runtime' | 'mock-simulation' | 'unknown';
 export type Confidence = 'verified' | 'estimated' | 'unknown';
 export type Capability = 'chat' | 'code' | 'vision' | 'files' | 'tools' | 'streaming' | 'local';
-export type ConnectionMethod = 'official-api' | 'official-subscription' | 'local-runtime' | 'mock-simulation';
+export type ConnectionMethod = 'official-api' | 'official-subscription' | 'official-cli' | 'local-runtime' | 'mock-simulation';
 
 export interface QuotaWindow {
   kind: 'rate' | 'five-hour' | 'daily' | 'weekly' | 'monthly' | 'tokens' | 'requests' | 'credit';

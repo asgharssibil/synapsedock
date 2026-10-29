@@ -1,4 +1,5 @@
 import type { ConnectionInput, CreateTaskInput } from '../src/shared/api';
+import { PROVIDER_CATALOG } from '../src/core/provider-catalog';
 
 export const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object';
 
@@ -15,6 +16,6 @@ export function parseTaskInput(raw: unknown): CreateTaskInput {
 }
 
 export function parseConnectionInput(raw: unknown): ConnectionInput {
-  if (!isRecord(raw) || !['openai', 'google', 'xai'].includes(String(raw.provider))) throw new Error('Unsupported provider.');
+  if (!isRecord(raw) || !PROVIDER_CATALOG.some((provider) => provider.id === raw.provider)) throw new Error('Unsupported provider.');
   return { provider: raw.provider as ConnectionInput['provider'], apiKey: cleanText(raw.apiKey, 500) };
 }

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import initSqlJs, { type Database as SqlDatabase } from 'sql.js';
 import type { ProviderAccount, WorkspaceTask } from '../src/core/types';
+import { PROVIDER_CATALOG, providerCatalogItem, type CloudProviderId } from '../src/core/provider-catalog';
 import type { ActivityItem, WorkspaceSnapshot } from '../src/shared/api';
 
 export class WorkspaceDatabase {
@@ -13,6 +14,7 @@ export class WorkspaceDatabase {
     const instance = new WorkspaceDatabase(new SQL.Database(bytes), filePath);
     instance.migrate();
     instance.seed();
+    instance.ensureProviderCatalog();
     instance.persist();
     return instance;
   }
@@ -100,6 +102,20 @@ export class WorkspaceDatabase {
     this.addActivity('warning', 'simulation.enabled', 'Mock providers are test fixtures and are not real service connections.');
   }
 
+  private ensureProviderCatalog(): void {
+    const now = new Date().toISOString();
+    PROVIDER_CATALOG.forEach((provider, index) => {
+      const id = `${provider.id}-api`;
+      if (this.value<number>(`SELECT COUNT(*) FROM provider_accounts WHERE id = ${this.quote(id)}`)) return;
+      this.upsertAccount({
+        id, provider: provider.id, displayName: provider.name, plan: 'Not configured', model: 'Discover on connect',
+        connectionMethod: 'official-api', availability: 'unknown', connected: false, capabilities: provider.capabilities,
+        quotaWindows: [{ kind: 'rate', source: 'unknown', confidence: 'unknown' }], paid: provider.freeTier === 'paid',
+        priority: 10 + index, lastUpdatedAt: now, simulation: false,
+      });
+    });
+  }
+
   snapshot(): WorkspaceSnapshot {
     const accounts = this.queryAccounts();
     const tasks = this.queryTasks();
@@ -147,13 +163,62 @@ export class WorkspaceDatabase {
     this.persist();
   }
 
-  markConnection(provider: 'openai' | 'google' | 'xai' | 'ollama', models: string[]): void {
-    const id = provider === 'google' ? 'google-api' : provider === 'ollama' ? 'ollama-local' : `${provider}-api`;
+  markConnection(provider: CloudProviderId | 'ollama', models: string[]): void {
+    const id = provider === 'ollama' ? 'ollama-local' : `${provider}-api`;
     this.db.run(
       "UPDATE provider_accounts SET connected = 1, availability = ?, plan = ?, model = ?, updated_at = ? WHERE id = ?",
       ['unknown', provider === 'ollama' ? 'Local runtime discovered' : 'Official API configured', models.slice(0, 3).join(', ') || 'Discovered', new Date().toISOString(), id],
     );
-    this.addActivity('success', 'provider.connected', provider === 'ollama' ? 'Ollama runtime and models discovered; inference not yet verified.' : `${provider} credentials accepted for model discovery; inference not yet tested.`);
+    const label = provider === 'ollama' ? 'Ollama' : providerCatalogItem(provider).name;
+    this.addActivity('success', 'provider.connected', provider === 'ollama' ? 'Ollama runtime and models discovered; inference not yet verified.' : `${label} credential accepted by an official read-only endpoint; generation not yet tested.`);
+    this.persist();
+  }
+
+  markChatGptConnection(label: string, planUsage: boolean): void {
+    this.upsertAccount({
+      id: 'chatgpt-subscription', provider: 'openai', displayName: label, plan: planUsage ? 'ChatGPT plan connected' : 'Identity connected',
+      model: planUsage ? 'Discover after authorized request' : 'Plan usage not authorized', connectionMethod: 'official-subscription',
+      availability: planUsage ? 'available' : 'limited', connected: true, capabilities: ['chat', 'code', 'files', 'tools', 'streaming'],
+      quotaWindows: [{ kind: 'five-hour', source: 'official-api', confidence: 'unknown' }], paid: false, priority: 3,
+      lastUpdatedAt: new Date().toISOString(), simulation: false,
+    });
+    this.addActivity('success', 'provider.subscription-connected', `ChatGPT account connected through official OAuth${planUsage ? ' with plan usage permission' : ''}.`);
+    this.persist();
+  }
+
+  disconnectChatGpt(): void {
+    this.db.run("UPDATE provider_accounts SET connected = 0, availability = 'revoked', updated_at = ? WHERE id = 'chatgpt-subscription'", [new Date().toISOString()]);
+    this.addActivity('warning', 'provider.subscription-disconnected', 'ChatGPT account disconnected from SynapseDock.');
+    this.persist();
+  }
+
+  getBooleanSetting(key: string, fallback = false): boolean {
+    const value = this.value<string>(`SELECT value_json FROM settings WHERE key = ${this.quote(key)}`);
+    if (value === undefined) return fallback;
+    try { return JSON.parse(value) === true; }
+    catch { return fallback; }
+  }
+
+  setBooleanSetting(key: string, value: boolean): void {
+    this.db.run('INSERT OR REPLACE INTO settings (key, value_json) VALUES (?, ?)', [key, JSON.stringify(value)]);
+    this.persist();
+  }
+
+  markClaudeCliConnection(version: string, authMethod: string): void {
+    this.upsertAccount({
+      id: 'claude-cli-subscription', provider: 'anthropic', displayName: 'Claude via Claude Code',
+      plan: 'Experimental bridge to official CLI', model: `Claude Code ${version}`, connectionMethod: 'official-cli',
+      availability: 'available', connected: true, capabilities: ['chat', 'code'],
+      quotaWindows: [{ kind: 'weekly', source: 'official-cli', confidence: 'unknown' }], paid: true, priority: 4,
+      lastUpdatedAt: new Date().toISOString(), simulation: false,
+    });
+    this.addActivity('success', 'provider.experimental-cli-verified', `Claude Code connection verified through ${authMethod}; quota remains unknown.`);
+    this.persist();
+  }
+
+  disconnectClaudeCli(): void {
+    this.db.run("UPDATE provider_accounts SET connected = 0, availability = 'revoked', updated_at = ? WHERE id = 'claude-cli-subscription'", [new Date().toISOString()]);
+    this.addActivity('warning', 'provider.experimental-cli-disabled', 'Experimental Claude Code bridge disabled. Claude Code login was not changed.');
     this.persist();
   }
 

@@ -12,7 +12,8 @@ describe('IPC boundary validation', () => {
   });
 
   it('rejects unallowlisted providers and oversized credentials', () => {
-    expect(() => parseConnectionInput({ provider: 'anthropic', apiKey: 'secret' })).toThrow('Unsupported provider');
+    expect(() => parseConnectionInput({ provider: 'browser-cookie-scraper', apiKey: 'secret' })).toThrow('Unsupported provider');
+    expect(parseConnectionInput({ provider: 'anthropic', apiKey: 'secret' })).toEqual({ provider: 'anthropic', apiKey: 'secret' });
     expect(() => parseConnectionInput({ provider: 'openai', apiKey: 'x'.repeat(501) })).toThrow();
   });
 });

@@ -1,4 +1,5 @@
 import type { ProviderAccount, WorkspaceTask } from '../core/types';
+import type { CloudProviderId } from '../core/provider-catalog';
 
 export interface ActivityItem {
   id: string;
@@ -22,7 +23,7 @@ export interface CreateTaskInput {
 }
 
 export interface ConnectionInput {
-  provider: 'openai' | 'google' | 'xai';
+  provider: CloudProviderId;
   apiKey: string;
 }
 
@@ -32,11 +33,42 @@ export interface ConnectionTestResult {
   models?: string[];
 }
 
+export interface ChatGptConnectionStatus {
+  connected: boolean;
+  planUsage: boolean;
+  email?: string;
+  name?: string;
+  expiresAt?: string;
+}
+
+export interface ClaudeCliStatus {
+  enabled: boolean;
+  installed: boolean;
+  loggedIn: boolean;
+  version?: string;
+  authMethod?: 'none' | 'claude.ai' | 'oauth_token' | 'api_key' | 'api_key_helper' | 'third_party' | 'unknown';
+  executable?: string;
+  detail?: string;
+}
+
+export interface ClaudeCliVerification {
+  ok: boolean;
+  message: string;
+  response?: string;
+}
+
 export interface DesktopApi {
   getSnapshot(): Promise<WorkspaceSnapshot>;
   createTask(input: CreateTaskInput): Promise<WorkspaceSnapshot>;
   runScenario(scenario: 'gpt-90' | 'claude-exhausted' | 'all-exhausted' | 'reset-recovered'): Promise<WorkspaceSnapshot>;
   testConnection(input: ConnectionInput): Promise<ConnectionTestResult>;
   testOllama(): Promise<ConnectionTestResult>;
+  getChatGptStatus(): Promise<ChatGptConnectionStatus>;
+  signInChatGpt(): Promise<ChatGptConnectionStatus>;
+  signOutChatGpt(): Promise<{ remoteRevoked: boolean }>;
+  getClaudeCliStatus(): Promise<ClaudeCliStatus>;
+  setClaudeCliEnabled(enabled: boolean): Promise<ClaudeCliStatus>;
+  startClaudeCliLogin(): Promise<{ launched: boolean; message: string }>;
+  verifyClaudeCli(): Promise<ClaudeCliVerification>;
   getRuntimeInfo(): Promise<{ platform: string; version: string; dataPath: string }>;
 }

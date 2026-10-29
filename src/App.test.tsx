@@ -27,8 +27,10 @@ let desktop: { [K in keyof DesktopApi]: ReturnType<typeof vi.fn> };
 beforeEach(() => {
   localStorage.clear();
   desktop = {
-    getSnapshot: vi.fn().mockResolvedValue(initialSnapshot),
-    createTask: vi.fn(), runScenario: vi.fn(), testConnection: vi.fn(), testOllama: vi.fn(), getRuntimeInfo: vi.fn(),
+    getSnapshot: vi.fn().mockResolvedValue(initialSnapshot), getChatGptStatus: vi.fn().mockResolvedValue({ connected: false, planUsage: false }),
+    getClaudeCliStatus: vi.fn().mockResolvedValue({ enabled: false, installed: true, loggedIn: false, version: '2.1.300' }),
+    createTask: vi.fn(), runScenario: vi.fn(), testConnection: vi.fn(), testOllama: vi.fn(), signInChatGpt: vi.fn(), signOutChatGpt: vi.fn(),
+    setClaudeCliEnabled: vi.fn(), startClaudeCliLogin: vi.fn(), verifyClaudeCli: vi.fn(), getRuntimeInfo: vi.fn(),
   };
   Object.defineProperty(window, 'desktop', { configurable: true, value: desktop });
 });
@@ -52,6 +54,58 @@ describe('desktop renderer user flows', () => {
     const keyInput = screen.getByLabelText('کلید API') as HTMLInputElement;
     expect(keyInput.type).toBe('password');
     expect(keyInput.value).toBe('');
+    expect(screen.getByText(/صفحه رسمی سرویس در مرورگر باز می‌شود/)).toBeTruthy();
+  });
+
+  it('starts official ChatGPT OAuth without collecting a website password', async () => {
+    const user = userEvent.setup();
+    desktop.signInChatGpt.mockResolvedValue({ connected: true, planUsage: true, email: 'user@example.com' });
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
+    await user.click(screen.getByRole('button', { name: 'Continue with ChatGPT' }));
+    expect(desktop.signInChatGpt).toHaveBeenCalledOnce();
+    expect(await screen.findByText('user@example.com')).toBeTruthy();
+    expect(screen.getByText('مجوز استفاده از پلن فعال است')).toBeTruthy();
+  });
+
+  it('keeps the unofficial Claude bridge disabled until its warning is accepted', async () => {
+    const user = userEvent.setup();
+    desktop.setClaudeCliEnabled.mockResolvedValue({ enabled: true, installed: true, loggedIn: false, version: '2.1.300' });
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
+    expect(screen.getByText(/پل SynapseDock غیررسمی است/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'پذیرش ریسک و فعال‌سازی' }));
+    expect(desktop.setClaudeCliEnabled).toHaveBeenCalledWith(true);
+    expect(await screen.findByRole('button', { name: 'ورود رسمی Claude' })).toBeTruthy();
+  });
+
+  it('opens official Claude login and refreshes its public CLI status', async () => {
+    const user = userEvent.setup();
+    desktop.getClaudeCliStatus.mockResolvedValue({ enabled: true, installed: true, loggedIn: false, version: '2.1.300' });
+    desktop.startClaudeCliLogin.mockResolvedValue({ launched: true, message: 'opened' });
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
+    await user.click(await screen.findByRole('button', { name: 'ورود رسمی Claude' }));
+    expect(desktop.startClaudeCliLogin).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('button', { name: 'بررسی وضعیت' }));
+    expect(desktop.getClaudeCliStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('verifies and can disable an already signed-in experimental Claude bridge', async () => {
+    const user = userEvent.setup();
+    desktop.getClaudeCliStatus.mockResolvedValue({ enabled: true, installed: true, loggedIn: true, authMethod: 'claude.ai', version: '2.1.300' });
+    desktop.verifyClaudeCli.mockResolvedValue({ ok: true, message: 'verified', response: 'SYNAPSEDOCK_CLAUDE_OK' });
+    desktop.setClaudeCliEnabled.mockResolvedValue({ enabled: false, installed: true, loggedIn: true, authMethod: 'claude.ai', version: '2.1.300' });
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
+    await user.click(await screen.findByRole('button', { name: 'تأیید با یک درخواست' }));
+    expect(desktop.verifyClaudeCli).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('button', { name: 'غیرفعال' }));
+    expect(desktop.setClaudeCliEnabled).toHaveBeenCalledWith(false);
   });
 
   it('creates a free-only persistent task through the modal and shows it in the queue', async () => {
@@ -103,5 +157,45 @@ describe('desktop renderer user flows', () => {
     await user.type(editor, 'const ready = true;');
     await user.click(screen.getByRole('button', { name: /ذخیره محلی/ }));
     expect(localStorage.getItem('synapsedock.code.draft')).toBe('const ready = true;');
+  });
+
+  it('opens formerly placeholder modules and persists a local agent profile', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: /عامل‌ها/ }));
+    const editor = screen.getByLabelText('عامل‌ها');
+    await user.type(editor, 'Reviewer | Read-only review');
+    await user.click(screen.getByRole('button', { name: 'ذخیره' }));
+    expect(localStorage.getItem('synapsedock.module.agents')).toContain('Reviewer');
+  });
+
+  it('validates MCP JSON locally and exposes the security view', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: /MCP و افزونه‌ها/ }));
+    const editor = screen.getByLabelText('MCP و افزونه‌ها');
+    await user.clear(editor);
+    await user.type(editor, 'broken');
+    await user.click(screen.getByRole('button', { name: 'ذخیره' }));
+    expect(await screen.findByText('JSON مربوط به MCP معتبر نیست.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'امنیت و مجوزها' }));
+    expect(screen.getByText('رمزها و کلیدها')).toBeTruthy();
+  });
+
+  it('shows the expanded provider catalog in Settings and can connect Kimi by API key', async () => {
+    const user = userEvent.setup();
+    desktop.testConnection.mockResolvedValue({ ok: true, message: 'verified', models: ['kimi-k3'] });
+    render(<App />);
+    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await user.click(screen.getByRole('button', { name: 'تنظیمات' }));
+    expect(screen.getByText('Kimi / Moonshot')).toBeTruthy();
+    expect(screen.getByText('Runway')).toBeTruthy();
+    expect(screen.getByText('ElevenLabs')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Kimi \/ Moonshot/ }));
+    await user.type(screen.getByLabelText('کلید API'), 'kimi-secret-key');
+    await user.click(screen.getByRole('button', { name: 'بررسی و اتصال' }));
+    expect(desktop.testConnection).toHaveBeenCalledWith({ provider: 'kimi', apiKey: 'kimi-secret-key' });
   });
 });

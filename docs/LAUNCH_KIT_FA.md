@@ -5,8 +5,8 @@
 ## لینک‌های اصلی
 
 - مخزن: https://github.com/asgharssibil/synapsedock
-- دانلود مستقیم ویندوز: https://github.com/asgharssibil/synapsedock/releases/download/v0.1.1/SynapseDock-Setup-0.1.1.exe
-- نسخه منتشرشده: https://github.com/asgharssibil/synapsedock/releases/tag/v0.1.1
+- دانلود مستقیم ویندوز: https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SynapseDock-Setup-0.2.0.exe
+- نسخه منتشرشده: https://github.com/asgharssibil/synapsedock/releases/tag/v0.2.0
 - ثبت بازخورد: https://github.com/asgharssibil/synapsedock/issues/new
 
 ## معرفی کوتاه فارسی

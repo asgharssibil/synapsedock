@@ -6,16 +6,22 @@ import { WorkspaceDatabase } from './database';
 import { testApiConnection, testOllamaConnection } from './providers';
 import { parseConnectionInput, parseTaskInput } from './validation';
 import { isNavigationAllowed, SECURE_WEB_PREFERENCES } from './security-policy';
+import { ChatGptOAuth } from './chatgpt-oauth';
+import { ClaudeCliAdapter } from './claude-cli';
 
 let database: WorkspaceDatabase;
 let vault: CredentialVault;
+let chatGptOAuth: ChatGptOAuth;
+let claudeCli: ClaudeCliAdapter;
 const smokeDirectory = process.env.UAIW_SMOKE_DIR ? path.resolve(process.env.UAIW_SMOKE_DIR) : undefined;
+const qaDataDirectory = process.env.UAIW_QA_DATA_DIR ? path.resolve(process.env.UAIW_QA_DATA_DIR) : undefined;
 const smokeVariant = process.env.UAIW_SMOKE_VARIANT;
 const smokeView = process.env.UAIW_SMOKE_VIEW;
 const smokeCompact = process.env.UAIW_SMOKE_COMPACT === '1';
 const marketingCapture = process.env.UAIW_MARKETING_CAPTURE === '1';
 const developmentMode = process.env.UAIW_DEV_SERVER === '1';
 if (smokeDirectory) app.setPath('userData', path.join(smokeDirectory, 'user-data'));
+else if (qaDataDirectory) app.setPath('userData', qaDataDirectory);
 
 function registerIpc(): void {
   ipcMain.handle('workspace:snapshot', () => database.snapshot());
@@ -42,6 +48,34 @@ function registerIpc(): void {
   ipcMain.handle('connections:test-ollama', async () => {
     const result = await testOllamaConnection();
     if (result.ok) database.markConnection('ollama', result.models ?? []);
+    return result;
+  });
+  ipcMain.handle('connections:chatgpt-status', () => chatGptOAuth.getStatus());
+  ipcMain.handle('connections:chatgpt-sign-in', async () => {
+    const status = await chatGptOAuth.signIn();
+    database.markChatGptConnection(status.email ?? status.name ?? 'ChatGPT account', status.planUsage);
+    return status;
+  });
+  ipcMain.handle('connections:chatgpt-sign-out', async () => {
+    const result = await chatGptOAuth.signOut();
+    database.disconnectChatGpt();
+    return result;
+  });
+  ipcMain.handle('connections:claude-cli-status', () => claudeCli.status(database.getBooleanSetting('experimental.claude-cli.enabled')));
+  ipcMain.handle('connections:claude-cli-enabled', async (_event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Invalid experimental connector setting.');
+    database.setBooleanSetting('experimental.claude-cli.enabled', enabled);
+    if (!enabled) database.disconnectClaudeCli();
+    return claudeCli.status(enabled);
+  });
+  ipcMain.handle('connections:claude-cli-login', async () => {
+    if (!database.getBooleanSetting('experimental.claude-cli.enabled')) throw new Error('Enable the experimental Claude connector first.');
+    return claudeCli.launchLogin();
+  });
+  ipcMain.handle('connections:claude-cli-verify', async () => {
+    if (!database.getBooleanSetting('experimental.claude-cli.enabled')) throw new Error('Enable the experimental Claude connector first.');
+    const result = await claudeCli.verify();
+    if (result.ok) database.markClaudeCliConnection(result.version ?? 'unknown', result.authMethod ?? 'unknown');
     return result;
   });
   ipcMain.handle('runtime:info', () => ({ platform: process.platform, version: app.getVersion(), dataPath: app.getPath('userData') }));
@@ -77,6 +111,8 @@ async function createWindow(): Promise<void> {
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       }
       const runtime = await window.desktop.getRuntimeInfo();
+      const claudeCliStatus = await window.desktop.getClaudeCliStatus();
+      await new Promise((resolve) => setTimeout(resolve, 200));
       const before = await window.desktop.getSnapshot();
       const after = await window.desktop.createTask({ title: 'Electron E2E task', goal: 'Verify preload, IPC, SQLite and renderer.', freeOnly: true });
       return {
@@ -87,6 +123,7 @@ async function createWindow(): Promise<void> {
         hasAppShell: Boolean(document.querySelector('.app-shell')),
         text: document.body.innerText.slice(0, 2000),
         runtime,
+        claudeCliStatus,
         accountCount: before.accounts.length,
         tasksBefore: before.tasks.length,
         tasksAfter: after.tasks.length,
@@ -94,6 +131,7 @@ async function createWindow(): Promise<void> {
       };
     })()`);
     await vault.set('smoke-test', 'smoke-secret-value');
+    const credentialRoundTrip = vault.get('smoke-test') === 'smoke-secret-value';
     const encryptedCredentialFile = fs.readFileSync(path.join(smokeDirectory, 'user-data', 'credentials.enc.json'), 'utf8');
     if (marketingCapture) {
       window.showInactive();
@@ -102,7 +140,7 @@ async function createWindow(): Promise<void> {
     const image = await window.webContents.capturePage();
     fs.mkdirSync(smokeDirectory, { recursive: true });
     fs.writeFileSync(path.join(smokeDirectory, 'renderer.png'), image.toPNG());
-    fs.writeFileSync(path.join(smokeDirectory, 'smoke.json'), JSON.stringify({ renderer, snapshot: database.snapshot(), electron: process.versions.electron, credentialEncrypted: !encryptedCredentialFile.includes('smoke-secret-value') }, null, 2));
+    fs.writeFileSync(path.join(smokeDirectory, 'smoke.json'), JSON.stringify({ renderer, snapshot: database.snapshot(), electron: process.versions.electron, credentialEncrypted: !encryptedCredentialFile.includes('smoke-secret-value'), credentialRoundTrip }, null, 2));
     app.quit();
   }
 }
@@ -112,6 +150,10 @@ app.whenReady().then(async () => {
   const dataPath = app.getPath('userData');
   database = await WorkspaceDatabase.open(path.join(dataPath, 'workspace.sqlite'));
   vault = new CredentialVault(path.join(dataPath, 'credentials.enc.json'));
+  chatGptOAuth = new ChatGptOAuth(vault);
+  const claudeWorkingDirectory = path.join(dataPath, 'claude-bridge');
+  fs.mkdirSync(claudeWorkingDirectory, { recursive: true });
+  claudeCli = new ClaudeCliAdapter(claudeWorkingDirectory);
   registerIpc();
   try { await createWindow(); }
   catch (error) {

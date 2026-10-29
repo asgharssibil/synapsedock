@@ -1,6 +1,6 @@
 {
   "name": "synapsedock",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "A secure, provider-agnostic desktop workspace for persistent AI tasks and quota-aware failover.",
   "author": "SynapseDock",
@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@fontsource/vazirmatn": "^5.2.6",
+    "jose": "5.10.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -82,7 +83,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "SynapseDock-Setup-${version}.${ext}"
