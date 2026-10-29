@@ -15,18 +15,18 @@ SynapseDock یک فضای کاری دسکتاپ ویندوزی برای چت و�
 
 ## متن کوتاه انگلیسی
 
-SynapseDock is a Windows desktop workspace for persistent, quota-aware AI operations. It brings provider health, durable tasks, checkpoints, and failover experiments into one bilingual interface, with local SQLite persistence and OS-backed credential encryption.
+SynapseDock is a Windows desktop app for multi-provider AI chat and local coding. It combines ChatGPT, Claude, text APIs and Ollama with project files, an editor, a project-scoped terminal, durable tasks, and encrypted credentials in one bilingual interface.
 
 ## Product Hunt
 
 - **Name:** SynapseDock
-- **Tagline:** Persistent AI tasks across providers on Windows
-- **Description:** A bilingual Windows workspace for provider health, quota awareness, persistent tasks, checkpoints, and failover experiments—with local-first storage and clearly labeled mock scenarios.
+- **Tagline:** Multi-provider AI chat and coding on Windows
+- **Description:** A bilingual Windows desktop app that combines ChatGPT, Claude, official AI APIs and Ollama with local project files, an editor, terminal commands, durable tasks, and encrypted credentials.
 - **First comment outline:** مسئله‌ای که شخصاً با آن روبه‌رو بودی؛ چرا SynapseDock را ساختی؛ اکنون چه چیزهایی واقعاً کار می‌کنند؛ چه چیزهایی هنوز در roadmap هستند؛ دقیقاً درباره چه چیزی بازخورد می‌خواهی.
 
 ## Show HN
 
-- **Title:** Show HN: SynapseDock – a Windows workspace for persistent AI tasks
+- **Title:** Show HN: SynapseDock – multi-provider AI chat and local coding on Windows
 - **Post outline:** مسئله در ۲ جمله؛ تصمیم‌های فنی مهم در ۳ جمله؛ مرز صادقانه Mock در برابر اتصال واقعی؛ لینک دانلود و مخزن؛ یک سؤال مشخص برای دریافت بازخورد فنی.
 
 متن نهایی را خودت و با تجربه شخصی بنویس؛ از ارسال متن یکسان در چند جامعه یا تبلیغ تکراری خودداری کن.
@@ -37,7 +37,7 @@ SynapseDock is a Windows desktop workspace for persistent, quota-aware AI operat
 
 ## پست فارسی برای لینکدین یا تلگرام
 
-نسخه اولیه SynapseDock را منتشر کردم؛ یک اپ دسکتاپ ویندوزی برای دیدن وضعیت ارائه‌دهنده‌های AI، سهمیه‌ها، وظایف ماندگار، نقاط بازیابی و آزمایش failover در یک محیط فارسی/انگلیسی. نسخه ۰.۱ هنوز یک پایه اولیه است و اتصال‌های Mock را شفاف از اتصال واقعی جدا می‌کند. اگر روی ویندوز با چند سرویس AI کار می‌کنید، خوشحال می‌شوم تجربه نصب و اولین برداشتتان را در Issues بنویسید.
+نسخه ۰.۳ SynapseDock را منتشر کردم؛ یک اپ دسکتاپ ویندوزی برای چت با چند سرویس AI و کار روی پروژه‌های محلی. ChatGPT، Claude، APIهای متنی و Ollama کنار فایل‌گردان، ادیتور، ترمینال پروژه، وظایف ماندگار و ذخیره امن اعتبارنامه‌ها در یک محیط فارسی/انگلیسی قرار گرفته‌اند. اگر روی ویندوز با چند سرویس AI کدنویسی می‌کنید، تجربه نصب و اولین برداشتتان را در Issues بنویسید.
 
 ## چک‌لیست انتشار
 

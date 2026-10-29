@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Download the latest Windows release
+    url: https://github.com/asgharssibil/synapsedock/releases/latest
+    about: Install or verify the newest published build before reporting an old-version problem.

@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest an AI provider, coding workflow, or desktop capability
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve SynapseDock. Please describe the workflow and outcome rather than only naming a feature.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - AI chat and providers
+        - Coding workspace and terminal
+        - Tasks, agents, and automations
+        - Quotas and failover
+        - MCP and integrations
+        - Windows installation and updates
+        - User interface and accessibility
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or workflow
+      description: What are you trying to accomplish, and what makes it difficult today?
+      placeholder: I want to… because…
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should SynapseDock do, and how would you know it worked?
+    validations:
+      required: true
+  - type: textarea
+    id: provider
+    attributes:
+      label: Provider or tool details
+      description: Include the official product/API name and documentation link when relevant. Never paste credentials.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I did not include passwords, API keys, tokens, or private project data.
+          required: true

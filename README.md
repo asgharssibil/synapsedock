@@ -5,12 +5,14 @@
 <h1 align="center">SynapseDock</h1>
 
 <p align="center">
-  A Windows desktop workspace for persistent, quota-aware AI operations.
+  Multi-provider AI chat and a real local coding workspace for Windows.
 </p>
 
 <p align="center">
   <a href="https://github.com/asgharssibil/synapsedock/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/asgharssibil/synapsedock/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/asgharssibil/synapsedock/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/asgharssibil/synapsedock?display_name=tag"></a>
+  <a href="https://github.com/asgharssibil/synapsedock/releases"><img alt="GitHub downloads" src="https://img.shields.io/github/downloads/asgharssibil/synapsedock/total?logo=github"></a>
+  <a href="https://github.com/asgharssibil/synapsedock/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/asgharssibil/synapsedock?style=flat&logo=github"></a>
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows">
   <img alt="Proprietary license" src="https://img.shields.io/badge/license-proprietary-6c5ce7">
 </p>
@@ -21,12 +23,15 @@
 
 ![SynapseDock social preview](assets/marketing/social-preview.jpg)
 
-SynapseDock keeps provider health, persistent tasks, quota state, checkpoints, and recovery experiments in one bilingual desktop workspace. The current release is an honest foundation: production-grade local storage and security are implemented, while mock providers and planned integrations are clearly identified.
+SynapseDock is a bilingual Windows desktop app for chatting with multiple AI providers and working directly on local code projects. Connect ChatGPT, Claude, official text APIs, or Ollama; then use one workspace for conversations, files, editing, commands, persistent tasks, quota state, and recovery experiments.
 
 ![SynapseDock product tour](assets/marketing/demo.gif)
 
 ## Why SynapseDock?
 
+- **One AI chat surface** — switch between ChatGPT, Claude, OpenAI-compatible APIs, Gemini, Cohere, and local Ollama without changing apps.
+- **A project-aware coding workspace** — browse, create, edit, save, and run local files with a project-scoped PowerShell terminal.
+- **Ask AI about the active file** — hand code from the editor to the chat composer without copying it manually.
 - **One operational view** — provider readiness, quota state, tasks, checkpoints, and recent activity at a glance.
 - **Persistent by default** — SQLite-backed tasks and recovery records survive restarts.
 - **Resilience lab** — test exhaustion, waiting, failover, and recovery flows without spending API credits.
@@ -40,12 +45,12 @@ SynapseDock keeps provider health, persistent tasks, quota state, checkpoints, a
 
 <table>
   <tr>
-    <td width="50%"><img src="outputs/ui-dark-fa-rtl.png" alt="Persian dark interface"></td>
-    <td width="50%"><img src="outputs/ui-light-en-ltr.png" alt="English light interface"></td>
+    <td width="50%"><img src="assets/marketing/chat-workspace.png" alt="SynapseDock multi-provider AI chat workspace in Persian"></td>
+    <td width="50%"><img src="assets/marketing/code-workspace.png" alt="SynapseDock coding workspace with file explorer, editor and terminal"></td>
   </tr>
   <tr>
-    <td align="center">Persian · RTL · dark</td>
-    <td align="center">English · LTR · light</td>
+    <td align="center">Multi-provider AI chat</td>
+    <td align="center">Project files · editor · terminal</td>
   </tr>
 </table>
 
@@ -131,6 +136,8 @@ SynapseDock v0.3.0 now provides real chat generation and a working local coding 
 - [Release notes](RELEASE_NOTES_v0.3.0.md)
 
 Found a bug or have a workflow SynapseDock should support? [Open an issue](https://github.com/asgharssibil/synapsedock/issues/new) with the Windows version, steps to reproduce, and expected behavior.
+
+If SynapseDock is useful to you, starring the repository helps other Windows and AI-tool users discover it. Feature ideas are welcome through the guided [feature request form](https://github.com/asgharssibil/synapsedock/issues/new?template=feature_request.yml).
 
 ## License
 
