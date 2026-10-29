@@ -125,6 +125,27 @@ describe('ChatGPT OAuth lifecycle', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('returns a valid plan token and refreshes an expired token inside the encrypted vault', async () => {
+    const { ChatGptOAuth } = await import('./chatgpt-oauth');
+    const base = { issuer: 'https://auth.openai.com', subject: 'sub', clientId: 'oaiapp_test', hostId: 'urn:uuid:h', idToken: 'id', accessToken: 'old-access', refreshToken: 'refresh', tokenType: 'Bearer', scopes: ['resource.invoke', 'chatgpt.tokens.use.direct'] };
+    const valid = vaultFixture({ 'chatgpt:oauth-profile:default': JSON.stringify({ ...base, expiresAt: '2035-01-01T00:00:00Z' }) });
+    await expect(new ChatGptOAuth(valid.vault as never).getAccessToken()).resolves.toBe('old-access');
+
+    const expired = vaultFixture({ 'chatgpt:oauth-profile:default': JSON.stringify({ ...base, expiresAt: '2020-01-01T00:00:00Z' }) });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 3600, scope: 'resource.invoke chatgpt.tokens.use.direct' }), { status: 200 })));
+    const oauth = new ChatGptOAuth(expired.vault as never);
+    await expect(oauth.getAccessToken()).resolves.toBe('new-access');
+    expect(expired.vault.set).toHaveBeenCalledWith('chatgpt:oauth-profile:default', expect.stringContaining('new-access'));
+  });
+
+  it('fails closed when ChatGPT plan access or refresh is unavailable', async () => {
+    const { ChatGptOAuth } = await import('./chatgpt-oauth');
+    const disconnected = new ChatGptOAuth(vaultFixture().vault as never);
+    await expect(disconnected.getAccessToken()).rejects.toThrow('not connected');
+    const noRefresh = vaultFixture({ 'chatgpt:oauth-profile:default': JSON.stringify({ issuer: 'https://auth.openai.com', subject: 'sub', clientId: 'id', hostId: 'host', idToken: 'id', accessToken: 'old', tokenType: 'Bearer', expiresAt: '2020-01-01T00:00:00Z', scopes: ['resource.invoke', 'chatgpt.tokens.use.direct'] }) });
+    await expect(new ChatGptOAuth(noRefresh.vault as never).getAccessToken()).rejects.toThrow('Sign in again');
+  });
+
   it('fails closed on untrusted discovery metadata and malformed stored data', async () => {
     const { ChatGptOAuth } = await import('./chatgpt-oauth');
     const fixture = vaultFixture({ 'chatgpt:oauth-profile:default': '{broken' });

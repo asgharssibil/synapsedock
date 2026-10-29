@@ -57,6 +57,53 @@ export interface ClaudeCliVerification {
   response?: string;
 }
 
+export type ChatProviderId = CloudProviderId | 'chatgpt' | 'claude-cli' | 'ollama';
+
+export interface ChatProviderOption {
+  id: ChatProviderId;
+  name: string;
+  connected: boolean;
+  method: 'subscription' | 'api' | 'local';
+  defaultModel: string;
+  models: string[];
+  detail?: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatRequest {
+  provider: ChatProviderId;
+  model: string;
+  messages: ChatMessage[];
+}
+
+export interface ChatResponse {
+  provider: ChatProviderId;
+  model: string;
+  content: string;
+}
+
+export interface CodeWorkspaceState {
+  root?: string;
+  files: string[];
+}
+
+export interface WorkspaceFile {
+  path: string;
+  content: string;
+}
+
+export interface CommandResult {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  timedOut: boolean;
+}
+
 export interface DesktopApi {
   getSnapshot(): Promise<WorkspaceSnapshot>;
   createTask(input: CreateTaskInput): Promise<WorkspaceSnapshot>;
@@ -70,5 +117,12 @@ export interface DesktopApi {
   setClaudeCliEnabled(enabled: boolean): Promise<ClaudeCliStatus>;
   startClaudeCliLogin(): Promise<{ launched: boolean; message: string }>;
   verifyClaudeCli(): Promise<ClaudeCliVerification>;
+  getChatProviders(): Promise<ChatProviderOption[]>;
+  sendChat(input: ChatRequest): Promise<ChatResponse>;
+  getCodeWorkspace(): Promise<CodeWorkspaceState>;
+  chooseCodeWorkspace(): Promise<CodeWorkspaceState>;
+  readWorkspaceFile(path: string): Promise<WorkspaceFile>;
+  saveWorkspaceFile(file: WorkspaceFile): Promise<CodeWorkspaceState>;
+  runWorkspaceCommand(command: string): Promise<CommandResult>;
   getRuntimeInfo(): Promise<{ platform: string; version: string; dataPath: string }>;
 }

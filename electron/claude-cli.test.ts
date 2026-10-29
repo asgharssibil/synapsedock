@@ -63,6 +63,18 @@ describe('experimental Claude Code bridge', () => {
     await expect(adapter.verify()).resolves.toEqual({ ok: false, message: 'Claude verification timed out.' });
   });
 
+  it('returns a real one-turn chat response through a subscription login', async () => {
+    const runner = vi.fn<ClaudeProcessRunner>(async (_executable, args) => {
+      if (args[0] === '--version') return { code: 0, stdout: '2.1.300', stderr: '', timedOut: false };
+      if (args[0] === 'auth') return { code: 0, stdout: '{"loggedIn":true,"authMethod":"claude.ai"}', stderr: '', timedOut: false };
+      return { code: 0, stdout: '{"result":"Working answer","is_error":false}', stderr: '', timedOut: false };
+    });
+    const adapter = new ClaudeCliAdapter(process.cwd(), runner, 'C:\\fake\\claude.exe');
+    await expect(adapter.chat([{ role: 'user', content: 'Help me code' }])).resolves.toBe('Working answer');
+    const chatCall = runner.mock.calls.find((call) => call[1][0] === '--safe-mode')!;
+    expect(chatCall[1]).toEqual(expect.arrayContaining(['--tools', '', '--no-session-persistence']));
+  });
+
   it('runs subprocesses without a shell and enforces their timeout', async () => {
     const success = await runClaudeProcess(process.execPath, ['-e', 'process.stdout.write("ok")'], { timeoutMs: 5_000 });
     expect(success).toMatchObject({ code: 0, stdout: 'ok', timedOut: false });

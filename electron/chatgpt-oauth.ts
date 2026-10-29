@@ -119,6 +119,27 @@ export class ChatGptOAuth {
     return publicStatus(this.readProfile());
   }
 
+  async getAccessToken(): Promise<string> {
+    const profile = this.readProfile();
+    if (!profile || !publicStatus(profile).planUsage) throw new Error('ChatGPT plan access is not connected.');
+    if (Date.parse(profile.expiresAt) > Date.now() + 60_000) return profile.accessToken;
+    if (!profile.refreshToken) throw new Error('ChatGPT session expired. Sign in again.');
+    const response = await fetch(TOKEN_URL, {
+      method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: profile.refreshToken, client_id: profile.clientId, resource: RESOURCE }),
+    });
+    const token = await response.json() as TokenResponse;
+    if (!response.ok || !token.access_token) throw new Error(token.error_description || token.error || 'ChatGPT session refresh failed.');
+    const refreshed: StoredProfile = {
+      ...profile, accessToken: token.access_token, refreshToken: token.refresh_token ?? profile.refreshToken,
+      tokenType: token.token_type ?? profile.tokenType,
+      expiresAt: new Date(Date.now() + Math.max(0, token.expires_in ?? 0) * 1000).toISOString(),
+      scopes: token.scope ? token.scope.split(/\s+/).filter(Boolean) : profile.scopes,
+    };
+    await this.vault.set(PROFILE_KEY, JSON.stringify(refreshed));
+    return refreshed.accessToken;
+  }
+
   async signIn(): Promise<ChatGptConnectionStatus> {
     if (this.pending) throw new Error('A ChatGPT sign-in is already in progress.');
     this.pending = true;

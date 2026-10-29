@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SynapseDock-Setup-0.2.0.exe"><img alt="Download SynapseDock for Windows" src="https://img.shields.io/badge/Download_for_Windows-v0.2.0-6C5CE7?style=for-the-badge&logo=windows"></a>
+  <a href="https://github.com/asgharssibil/synapsedock/releases/download/v0.3.0/SynapseDock-Setup-0.3.0.exe"><img alt="Download SynapseDock for Windows" src="https://img.shields.io/badge/Download_for_Windows-v0.3.0-6C5CE7?style=for-the-badge&logo=windows"></a>
 </p>
 
 ![SynapseDock social preview](assets/marketing/social-preview.jpg)
@@ -32,7 +32,8 @@ SynapseDock keeps provider health, persistent tasks, quota state, checkpoints, a
 - **Resilience lab** — test exhaustion, waiting, failover, and recovery flows without spending API credits.
 - **Local-first security** — credentials use Electron `safeStorage`; the renderer is sandboxed and has no Node.js access.
 - **Bilingual desktop UI** — switch between Persian/RTL and English/LTR, in dark or light mode.
-- **Local coding scratchpad** — write and keep code drafts on-device while terminal execution remains explicitly out of scope for this release.
+- **Provider-backed AI chat** — talk to connected ChatGPT, Claude, official text APIs, or local Ollama from one persistent desktop composer.
+- **Real coding workspace** — open a project folder, browse and edit files, run supported files, use a project-scoped PowerShell terminal, and send the active file to AI chat.
 - **Consent-aware routing** — free-only tasks never select paid providers without explicit configuration and consent.
 
 ## Screenshots
@@ -48,7 +49,7 @@ SynapseDock keeps provider health, persistent tasks, quota state, checkpoints, a
   </tr>
 </table>
 
-## What works in v0.2.0
+## What works in v0.3.0
 
 | Area | Implemented |
 | --- | --- |
@@ -59,15 +60,22 @@ SynapseDock keeps provider health, persistent tasks, quota state, checkpoints, a
 | Testing lab | Mock quota, exhaustion, waiting, failover, reset, and recovery scenarios |
 | Account sign-in | Official ChatGPT system-browser OAuth/PKCE plus an opt-in experimental bridge to the official Claude Code CLI |
 | Connection checks | Read-only verification for 16 official APIs spanning text/code, image/video and audio, plus local Ollama |
+| AI chat | Real provider requests through ChatGPT plan access, Claude Code subscription, 12 text API adapters, and local Ollama; local conversation continuity and editable model selection |
 | Experience | Persian/English, RTL/LTR, dark/light, installer shortcuts, and clean uninstall |
 | Preferences | Persistent language and theme settings with a compact-height-safe sidebar |
-| Coding | Local draft editor for TypeScript, Python, PowerShell, and plain text; execution is not yet implemented |
+| Coding | Persistent project folder, bounded file explorer, real file read/write, JS/Python/PowerShell/TypeScript launch commands, project terminal, and Ask AI handoff |
 | Local modules | Clickable Agents, Automations, MCP configuration, Memory, and Security workspaces with on-device persistence |
 
 > [!IMPORTANT]
 > Mock providers are simulations, not real service connections. SynapseDock does not claim access to consumer web subscriptions, and it displays `Unknown` whenever a provider does not expose an exact quota value.
 
-### New in v0.2.0
+### New in v0.3.0
+
+- Chat is now a primary workspace rather than a connection dashboard: it includes provider/model selection, local conversation history, multiline code-aware messages, and real responses.
+- The coding workspace now operates on an explicitly selected folder with path traversal protection, a file explorer, editor, save/create actions, command output, a 60-second process limit, and direct handoff to AI chat.
+- Provider credentials remain in the Electron main process; neither API keys nor ChatGPT tokens are returned to the renderer.
+
+### Added in v0.2.0
 
 - Official **Sign in with ChatGPT** through system-browser OAuth/PKCE. Account eligibility still controls whether plan usage is granted.
 - An opt-in **experimental Claude Code bridge**. It invokes Anthropic's official CLI after the user signs in on Claude's official page; SynapseDock does not read Claude cookies, passwords, or stored tokens.
@@ -81,8 +89,8 @@ See the [provider catalog](docs/PROVIDERS.md) for connection method, media type,
 
 ## Install on Windows
 
-1. [Download `SynapseDock-Setup-0.2.0.exe`](https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SynapseDock-Setup-0.2.0.exe).
-2. Verify the installer against [`SHA256SUMS.txt`](https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SHA256SUMS.txt).
+1. [Download `SynapseDock-Setup-0.3.0.exe`](https://github.com/asgharssibil/synapsedock/releases/download/v0.3.0/SynapseDock-Setup-0.3.0.exe).
+2. Verify the installer against [`SHA256SUMS.txt`](https://github.com/asgharssibil/synapsedock/releases/download/v0.3.0/SHA256SUMS.txt).
 3. Run the installer and choose the destination folder.
 
 The current x64 installer is unsigned, so Windows SmartScreen may display an **Unknown publisher** warning. The published checksum file lets you verify the download before running it.
@@ -110,17 +118,17 @@ npm run dist:win
 
 ## Verification
 
-The automated suite covers routing decisions, quota states, validation, persistence, security policy, and renderer behavior. Electron end-to-end tests launch the packaged runtime in isolated app-data directories and verify renderer mounting, preload/IPC, SQLite restart recovery, screenshot generation, and OS-backed credential encryption.
+The automated suite covers routing decisions, quota states, provider response normalization, path containment, validation, persistence, security policy, and renderer behavior. Electron end-to-end tests launch the packaged runtime in isolated app-data directories and verify chat-provider discovery, project file read/write, terminal execution, renderer mounting, preload/IPC, SQLite restart recovery, screenshot generation, and OS-backed credential encryption.
 
 ## Project status and roadmap
 
-SynapseDock v0.2.0 is an early multi-provider desktop foundation, not a finished universal AI client. API credentials can be verified and stored securely, while full generation workflows and autonomous execution remain future work unless explicitly marked implemented.
+SynapseDock v0.3.0 now provides real chat generation and a working local coding workspace. Autonomous background agents, unrestricted tool execution, streaming responses, Git operations, and media generation remain future work unless explicitly marked implemented.
 
 - [Development state](DEVELOPMENT_STATE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Compatibility matrix](docs/COMPATIBILITY.md)
 - [Security model](docs/SECURITY.md)
-- [Release notes](RELEASE_NOTES_v0.2.0.md)
+- [Release notes](RELEASE_NOTES_v0.3.0.md)
 
 Found a bug or have a workflow SynapseDock should support? [Open an issue](https://github.com/asgharssibil/synapsedock/issues/new) with the Windows version, steps to reproduce, and expected behavior.
 

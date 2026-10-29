@@ -29,6 +29,9 @@ function Invoke-SmokePass {
   if ($result.electron -ne '45.1.0') { throw "Unexpected Electron version: $($result.electron)" }
   if (-not $result.renderer.hasAppShell) { throw 'Renderer app shell did not mount.' }
   if (-not $result.renderer.ipcTaskPersisted) { throw 'IPC task round-trip failed.' }
+  if ($result.renderer.chatProviderCount -lt 10) { throw "Chat provider discovery incomplete: $($result.renderer.chatProviderCount) providers" }
+  if (-not $result.renderer.codeWorkspaceReady) { throw 'Code workspace file read/write IPC failed.' }
+  if (-not $result.renderer.terminalReady) { throw 'Workspace terminal execution failed.' }
   if ($result.renderer.accountCount -lt 19) { throw "Provider catalog migration incomplete: $($result.renderer.accountCount) accounts" }
   if (-not $result.credentialEncrypted) { throw 'Credential plaintext was found in the vault file.' }
   if (-not $result.credentialRoundTrip) { throw 'OS-encrypted credential could not be decrypted after storage.' }
@@ -40,4 +43,4 @@ function Invoke-SmokePass {
 
 Invoke-SmokePass -ExpectedBefore 0 -ExpectedAfter 1
 Invoke-SmokePass -ExpectedBefore 1 -ExpectedAfter 2
-Write-Output 'Electron E2E passed: renderer, preload, IPC, SQLite restart recovery, screenshot, and OS credential encryption/decryption.'
+Write-Output 'Electron E2E passed: chat providers, code file read/write, terminal execution, renderer, preload, IPC, SQLite restart recovery, screenshot, and OS credential encryption/decryption.'

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import type { ClaudeCliStatus, ClaudeCliVerification } from '../src/shared/api';
+import type { ChatMessage, ClaudeCliStatus, ClaudeCliVerification } from '../src/shared/api';
 
 type ProcessResult = { code: number | null; stdout: string; stderr: string; timedOut: boolean };
 export type ClaudeProcessRunner = (executable: string, args: string[], options?: { timeoutMs?: number; cwd?: string; env?: NodeJS.ProcessEnv; detached?: boolean }) => Promise<ProcessResult>;
@@ -56,11 +56,11 @@ function subscriptionEnvironment(): NodeJS.ProcessEnv {
   return env;
 }
 
-function responseText(stdout: string): string | undefined {
+function responseText(stdout: string, limit = 500): string | undefined {
   try {
     const parsed = JSON.parse(stdout) as { result?: unknown; is_error?: unknown };
     if (parsed.is_error === true || typeof parsed.result !== 'string') return undefined;
-    return parsed.result.slice(0, 500);
+    return parsed.result.slice(0, limit);
   } catch { return undefined; }
 }
 
@@ -119,5 +119,22 @@ export class ClaudeCliAdapter {
       ok, response, version: status.version, authMethod: status.authMethod,
       message: ok ? 'Claude subscription inference verified through the official Claude Code CLI.' : `Claude verification failed${result.stderr.trim() ? `: ${result.stderr.trim().slice(0, 240)}` : '.'}`,
     };
+  }
+
+  async chat(messages: ChatMessage[]): Promise<string> {
+    const status = await this.status(true);
+    if (!status.installed || !status.loggedIn || !status.authMethod || !SUBSCRIPTION_AUTH.has(status.authMethod)) {
+      throw new Error('Sign in to an enabled Claude Pro/Max connection first.');
+    }
+    const transcript = messages.map((message) => `${message.role === 'user' ? 'USER' : 'ASSISTANT'}:\n${message.content}`).join('\n\n');
+    const result = await this.runner(status.executable!, [
+      '--safe-mode', '-p', `Continue this conversation. Respond only to the latest USER message.\n\n${transcript}`,
+      '--tools', '', '--disallowedTools', 'mcp__*', '--disable-slash-commands',
+      '--no-session-persistence', '--permission-mode', 'dontAsk', '--max-turns', '1', '--output-format', 'json',
+    ], { timeoutMs: 180_000, cwd: this.workingDirectory, env: subscriptionEnvironment() });
+    if (result.timedOut) throw new Error('Claude response timed out.');
+    const response = responseText(result.stdout, 100_000);
+    if (result.code !== 0 || !response) throw new Error(result.stderr.trim().slice(0, 500) || 'Claude did not return a response.');
+    return response;
   }
 }

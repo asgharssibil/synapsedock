@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, Bot, Boxes, Check, ChevronLeft, CircleDollarSign, Clock3, Code2,
-  Command, Cpu, Database, FileCode2, Gauge, Globe2, LayoutDashboard, ListTodo, MemoryStick,
-  Moon, Network, Play, Plus, RefreshCw, Search, Settings, ShieldCheck, Sparkles, Sun, Unplug,
-  Workflow, X, Zap,
+  Command, Cpu, Database, File, FileCode2, FolderOpen, Gauge, Globe2, LayoutDashboard, ListTodo, MemoryStick,
+  MessageSquare, Moon, Network, Play, Plus, RefreshCw, Save, Search, Send, Settings, ShieldCheck, Sparkles, Sun, Terminal,
+  Trash2, Unplug, Workflow, X, Zap,
 } from 'lucide-react';
 import type { ProviderAccount } from './core/types';
 import { PROVIDER_CATALOG, providerCatalogItem, type CloudProviderId } from './core/provider-catalog';
-import type { ChatGptConnectionStatus, ClaudeCliStatus, ConnectionTestResult, WorkspaceSnapshot } from './shared/api';
+import type { ChatGptConnectionStatus, ChatMessage, ChatProviderOption, ClaudeCliStatus, CodeWorkspaceState, CommandResult, ConnectionTestResult, WorkspaceSnapshot } from './shared/api';
 
-type View = 'dashboard' | 'quota' | 'tasks' | 'connections' | 'code' | 'agents' | 'automations' | 'mcp' | 'memory' | 'security' | 'settings';
+type View = 'chat' | 'dashboard' | 'quota' | 'tasks' | 'connections' | 'code' | 'agents' | 'automations' | 'mcp' | 'memory' | 'security' | 'settings';
 type Locale = 'fa' | 'en';
 type Theme = 'dark' | 'light';
 
 const nav = [
+  { id: 'chat', fa: 'گفت‌وگوی هوش مصنوعی', en: 'AI Chat', icon: MessageSquare },
   { id: 'dashboard', fa: 'نمای کلی', en: 'Overview', icon: LayoutDashboard },
   { id: 'quota', fa: 'سهمیه‌ها', en: 'Quotas', icon: Gauge },
   { id: 'tasks', fa: 'وظایف', en: 'Tasks', icon: ListTodo },
@@ -76,12 +77,13 @@ function readPreference<T extends string>(key: string, allowed: readonly T[], fa
 
 export function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
-  const [view, setView] = useState<View>('dashboard');
+  const [view, setView] = useState<View>('chat');
   const [locale, setLocale] = useState<Locale>(() => readPreference('synapsedock.locale', ['fa', 'en'], 'fa'));
   const [theme, setTheme] = useState<Theme>(() => readPreference('synapsedock.theme', ['dark', 'light'], 'dark'));
   const [taskOpen, setTaskOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
+  const [chatContext, setChatContext] = useState('');
   const t = labels[locale];
 
   useEffect(() => { void window.desktop.getSnapshot().then(setSnapshot); }, []);
@@ -131,13 +133,14 @@ export function App() {
           </div>
         </header>
 
-        <section className="content">
+        <section className={`content ${view === 'chat' || view === 'code' ? 'workspace-content' : ''}`}>
           {!snapshot ? <Loading /> : <>
+            {view === 'chat' && <ChatView locale={locale} initialContext={chatContext} onConsumeContext={() => setChatContext('')} onConnections={() => setView('connections')} onNotice={setNotice} />}
             {view === 'dashboard' && <Dashboard snapshot={snapshot} locale={locale} onNavigate={setView} onScenario={runScenario} busy={busy} />}
             {view === 'quota' && <QuotaView accounts={snapshot.accounts} locale={locale} />}
             {view === 'tasks' && <TasksView snapshot={snapshot} locale={locale} />}
             {view === 'connections' && <ConnectionsView snapshot={snapshot} locale={locale} onRefresh={() => window.desktop.getSnapshot().then(setSnapshot)} onNotice={setNotice} />}
-            {view === 'code' && <CodeWorkspace locale={locale} onNotice={setNotice} />}
+            {view === 'code' && <CodeWorkspace locale={locale} onNotice={setNotice} onAskAi={(context) => { setChatContext(context); setView('chat'); }} />}
             {view === 'agents' && <LocalModuleView kind="agents" locale={locale} onNotice={setNotice} />}
             {view === 'automations' && <LocalModuleView kind="automations" locale={locale} onNotice={setNotice} />}
             {view === 'mcp' && <LocalModuleView kind="mcp" locale={locale} onNotice={setNotice} />}
@@ -258,22 +261,77 @@ function ApiConnectionForm({ locale, onRefresh, onNotice }: { locale: Locale; on
   </section>;
 }
 
-function CodeWorkspace({ locale, onNotice }: { locale: Locale; onNotice: (message: string) => void }) {
-  const [language, setLanguage] = useState(() => readPreference('synapsedock.code.language', ['typescript', 'python', 'powershell', 'text'], 'typescript'));
-  const [draft, setDraft] = useState(() => {
-    try { return localStorage.getItem('synapsedock.code.draft') ?? '// SynapseDock local scratchpad\n'; }
-    catch { return '// SynapseDock local scratchpad\n'; }
+function ChatView({ locale, initialContext, onConsumeContext, onConnections, onNotice }: { locale: Locale; initialContext: string; onConsumeContext: () => void; onConnections: () => void; onNotice: (message: string) => void }) {
+  const [providers, setProviders] = useState<ChatProviderOption[]>([]);
+  const [providerId, setProviderId] = useState('');
+  const [model, setModel] = useState('');
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try { const saved = JSON.parse(localStorage.getItem('synapsedock.chat.messages') ?? '[]'); return Array.isArray(saved) ? saved.slice(-40) : []; }
+    catch { return []; }
   });
-  function saveDraft() {
-    try {
-      localStorage.setItem('synapsedock.code.draft', draft);
-      localStorage.setItem('synapsedock.code.language', language);
-      onNotice(locale === 'fa' ? 'پیش‌نویس کد روی همین دستگاه ذخیره شد.' : 'Code draft saved on this device.');
-    } catch { onNotice(locale === 'fa' ? 'ذخیره محلی در دسترس نیست.' : 'Local storage is unavailable.'); }
+  const selected = providers.find((provider) => provider.id === providerId);
+
+  useEffect(() => {
+    void window.desktop.getChatProviders().then((next) => {
+      setProviders(next);
+      const first = next.find((provider) => provider.connected) ?? next[0];
+      if (first) { setProviderId(first.id); setModel(first.defaultModel); }
+    }).catch((error) => onNotice(error instanceof Error ? error.message : 'Provider discovery failed'));
+  }, []);
+  useEffect(() => {
+    if (initialContext) { setInput(initialContext); onConsumeContext(); }
+  }, [initialContext]);
+  useEffect(() => { try { localStorage.setItem('synapsedock.chat.messages', JSON.stringify(messages.slice(-40))); } catch { /* session still works */ } }, [messages]);
+
+  function chooseProvider(id: string) {
+    setProviderId(id);
+    const option = providers.find((provider) => provider.id === id);
+    if (option) setModel(option.defaultModel);
   }
-  return <><ViewHeading icon={Code2} title={locale === 'fa' ? 'فضای کدنویسی' : 'Coding workspace'} description={locale === 'fa' ? 'ویرایشگر محلی برای نوشتن و نگه‌داری پیش‌نویس کد. اجرای کد هنوز فعال نیست.' : 'A local editor for writing and keeping code drafts. Code execution is not enabled yet.'} />
-    <section className="panel code-workspace"><div className="code-toolbar"><div className="language-tabs">{(['typescript', 'python', 'powershell', 'text'] as const).map((item) => <button className={language === item ? 'active' : ''} onClick={() => setLanguage(item)} key={item}>{item}</button>)}</div><div className="code-actions"><span>{localNumber(draft.split('\n').length, locale)} {locale === 'fa' ? 'خط' : 'lines'}</span><button className="ghost-button" onClick={() => setDraft('')}>{locale === 'fa' ? 'پاک‌کردن' : 'Clear'}</button><button className="primary-button" onClick={saveDraft}><Database size={15} />{locale === 'fa' ? 'ذخیره محلی' : 'Save locally'}</button></div></div><textarea className="code-editor" dir="ltr" aria-label={locale === 'fa' ? 'ویرایشگر کد' : 'Code editor'} spellCheck={false} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); saveDraft(); } }} /><div className="code-boundary"><AlertTriangle size={15} /><span>{locale === 'fa' ? 'این نسخه پیش‌نویس را محلی نگه می‌دارد؛ ترمینال، اجرای کد و دسترسی مستقیم به فایل‌ها هنوز پیاده‌سازی نشده‌اند.' : 'This release keeps drafts locally; terminal execution and direct file access are not implemented yet.'}</span></div></section>
-  </>;
+  async function send() {
+    const content = input.trim();
+    if (!content || !selected?.connected || busy) return;
+    const next: ChatMessage[] = [...messages, { role: 'user' as const, content }].slice(-40);
+    setMessages(next); setInput(''); setBusy(true);
+    try {
+      const response = await window.desktop.sendChat({ provider: selected.id, model, messages: next });
+      setMessages((current) => [...current, { role: 'assistant' as const, content: response.content }].slice(-40));
+    } catch (error) { onNotice(error instanceof Error ? error.message : 'Chat request failed'); }
+    finally { setBusy(false); }
+  }
+  return <section className="chat-workspace">
+    <aside className="chat-rail panel"><button className="primary-button wide" onClick={() => { setMessages([]); setInput(''); }}><Plus size={16} />{locale === 'fa' ? 'گفت‌وگوی جدید' : 'New chat'}</button><div className="chat-history-title">{locale === 'fa' ? 'گفت‌وگوی محلی' : 'Local conversation'}</div><button className="chat-history-item active"><MessageSquare size={15} /><span>{messages.find((item) => item.role === 'user')?.content.slice(0, 42) || (locale === 'fa' ? 'گفت‌وگوی بدون عنوان' : 'Untitled chat')}</span></button><div className="chat-privacy"><ShieldCheck size={15} /><span>{locale === 'fa' ? 'تاریخچه فقط روی این دستگاه' : 'History stays on this device'}</span></div></aside>
+    <div className="chat-main panel">
+      <header className="chat-header"><div><MessageSquare size={18} /><span><strong>{locale === 'fa' ? 'دستیار SynapseDock' : 'SynapseDock assistant'}</strong><small>{selected?.connected ? (locale === 'fa' ? 'آماده پاسخ واقعی' : 'Ready for real responses') : (locale === 'fa' ? 'نیازمند اتصال' : 'Connection required')}</small></span></div><div className="chat-model-controls"><select aria-label={locale === 'fa' ? 'ارائه‌دهنده چت' : 'Chat provider'} value={providerId} onChange={(event) => chooseProvider(event.target.value)}>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.connected ? '●' : '○'} {provider.name}</option>)}</select><input aria-label={locale === 'fa' ? 'مدل' : 'Model'} value={model} onChange={(event) => setModel(event.target.value)} list="chat-models" dir="ltr" /><datalist id="chat-models">{selected?.models.map((item) => <option value={item} key={item} />)}</datalist></div></header>
+      <div className="chat-messages">{messages.length === 0 ? <div className="chat-empty"><div className="heading-orb"><Sparkles size={31} /></div><h1>{locale === 'fa' ? 'چه چیزی می‌خواهی بسازیم؟' : 'What should we build?'}</h1><p>{locale === 'fa' ? 'سؤال بپرس، کد بفرست یا از فضای کدنویسی یک فایل را برای بررسی بیاور.' : 'Ask a question, paste code, or send a file here from the coding workspace.'}</p><div className="prompt-chips">{(locale === 'fa' ? ['این خطا را پیدا کن', 'برای پروژه معماری پیشنهاد بده', 'این کد را کامل کن'] : ['Find this bug', 'Suggest an architecture', 'Complete this code']).map((prompt) => <button onClick={() => setInput(prompt)} key={prompt}>{prompt}</button>)}</div></div> : messages.map((message, index) => <article className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><div className="message-avatar">{message.role === 'assistant' ? <Sparkles size={16} /> : 'U'}</div><div><strong>{message.role === 'assistant' ? (selected?.name ?? 'AI') : (locale === 'fa' ? 'شما' : 'You')}</strong><pre>{message.content}</pre></div></article>)}{busy && <div className="chat-thinking"><RefreshCw className="spin" size={16} />{locale === 'fa' ? 'در حال فکر کردن…' : 'Thinking…'}</div>}</div>
+      {!selected?.connected && <div className="chat-connect-banner"><AlertTriangle size={16} /><span>{locale === 'fa' ? 'ابتدا یک حساب یا API را متصل کن.' : 'Connect an account or API first.'}</span><button onClick={onConnections}>{locale === 'fa' ? 'رفتن به اتصال‌ها' : 'Open connections'}</button></div>}
+      <div className="chat-composer"><textarea aria-label={locale === 'fa' ? 'پیام چت' : 'Chat message'} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void send(); } }} placeholder={locale === 'fa' ? 'پیام یا کد خود را بنویس…  Ctrl+Enter برای ارسال' : 'Write a message or paste code…  Ctrl+Enter to send'} rows={3} /><button className="send-button" aria-label={locale === 'fa' ? 'ارسال' : 'Send'} disabled={!input.trim() || !selected?.connected || busy} onClick={() => void send()}>{busy ? <RefreshCw className="spin" size={19} /> : <Send size={19} />}</button><div className="composer-meta"><span>{selected?.name ?? '—'} · {model || '—'}</span><span>{locale === 'fa' ? 'پاسخ از سرویس انتخاب‌شده دریافت می‌شود' : 'Responses come from the selected provider'}</span></div></div>
+    </div>
+  </section>;
+}
+
+function CodeWorkspace({ locale, onNotice, onAskAi }: { locale: Locale; onNotice: (message: string) => void; onAskAi: (context: string) => void }) {
+  const [workspace, setWorkspace] = useState<CodeWorkspaceState>({ files: [] });
+  const [activeFile, setActiveFile] = useState('');
+  const [content, setContent] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const [command, setCommand] = useState('');
+  const [terminal, setTerminal] = useState<CommandResult>();
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { void window.desktop.getCodeWorkspace().then(setWorkspace).catch((error) => onNotice(error instanceof Error ? error.message : 'Workspace failed')); }, []);
+  async function chooseWorkspace() { try { const next = await window.desktop.chooseCodeWorkspace(); setWorkspace(next); setActiveFile(''); setContent(''); } catch (error) { onNotice(error instanceof Error ? error.message : 'Folder selection failed'); } }
+  async function openFile(filePath: string) { if (dirty && !window.confirm(locale === 'fa' ? 'تغییرات ذخیره‌نشده کنار گذاشته شود؟' : 'Discard unsaved changes?')) return; try { const file = await window.desktop.readWorkspaceFile(filePath); setActiveFile(file.path); setContent(file.content); setDirty(false); } catch (error) { onNotice(error instanceof Error ? error.message : 'File could not be opened'); } }
+  async function saveFile() { if (!activeFile) return; try { setWorkspace(await window.desktop.saveWorkspaceFile({ path: activeFile, content })); setDirty(false); onNotice(locale === 'fa' ? 'فایل ذخیره شد.' : 'File saved.'); } catch (error) { onNotice(error instanceof Error ? error.message : 'Save failed'); } }
+  async function newFile() { const filePath = window.prompt(locale === 'fa' ? 'مسیر فایل جدید نسبت به پوشه پروژه:' : 'New file path relative to the project:'); if (!filePath) return; try { setWorkspace(await window.desktop.saveWorkspaceFile({ path: filePath, content: '' })); await openFile(filePath.replaceAll('\\', '/')); } catch (error) { onNotice(error instanceof Error ? error.message : 'File creation failed'); } }
+  async function run(runCommand = command) { if (!runCommand.trim() || busy) return; setBusy(true); try { setTerminal(await window.desktop.runWorkspaceCommand(runCommand)); setCommand(runCommand); } catch (error) { onNotice(error instanceof Error ? error.message : 'Command failed to start'); } finally { setBusy(false); } }
+  function runActive() { if (!activeFile) return; const quoted = `"${activeFile.replaceAll('"', '`"')}"`; const ext = activeFile.split('.').pop()?.toLowerCase(); const next = ext === 'py' ? `py -3 ${quoted}` : ext === 'ps1' ? `& ${quoted}` : ['js', 'mjs', 'cjs'].includes(ext ?? '') ? `node ${quoted}` : ext === 'ts' || ext === 'tsx' ? `npx tsx ${quoted}` : ''; if (!next) { onNotice(locale === 'fa' ? 'برای این نوع فایل فرمان اجرا مشخص نیست؛ از ترمینال استفاده کن.' : 'Use the terminal to run this file type.'); return; } void run(next); }
+  return <section className="code-ide panel">
+    <header className="ide-toolbar"><div><Code2 size={18} /><span><strong>{locale === 'fa' ? 'فضای کدنویسی' : 'Coding workspace'}</strong><small dir="ltr">{workspace.root ?? (locale === 'fa' ? 'هنوز پوشه‌ای انتخاب نشده' : 'No folder selected')}</small></span></div><div className="code-actions"><button className="ghost-button" onClick={() => void chooseWorkspace()}><FolderOpen size={15} />{locale === 'fa' ? 'بازکردن پوشه' : 'Open folder'}</button><button className="ghost-button" disabled={!workspace.root} onClick={() => void newFile()}><Plus size={15} />{locale === 'fa' ? 'فایل جدید' : 'New file'}</button><button className="ghost-button" disabled={!activeFile} onClick={() => onAskAi(`${locale === 'fa' ? 'این فایل را بررسی و بهبود بده' : 'Review and improve this file'}: ${activeFile}\n\n\`\`\`\n${content.slice(0, 50_000)}\n\`\`\``)}><Sparkles size={15} />{locale === 'fa' ? 'پرسش از AI' : 'Ask AI'}</button><button className="primary-button" disabled={!activeFile || !dirty} onClick={() => void saveFile()}><Save size={15} />{locale === 'fa' ? 'ذخیره' : 'Save'}</button></div></header>
+    <div className="ide-body"><aside className="file-explorer"><div className="explorer-title"><span>{locale === 'fa' ? 'فایل‌ها' : 'EXPLORER'}</span><strong>{localNumber(workspace.files.length, locale)}</strong></div>{workspace.files.length ? workspace.files.map((filePath) => <button className={activeFile === filePath ? 'active' : ''} title={filePath} onClick={() => void openFile(filePath)} key={filePath}><File size={14} /><span dir="ltr">{filePath}</span></button>) : <div className="explorer-empty"><FolderOpen size={25} /><span>{locale === 'fa' ? 'یک پوشه پروژه باز کن' : 'Open a project folder'}</span></div>}</aside><div className="editor-pane"><div className="editor-tab"><FileCode2 size={14} /><span dir="ltr">{activeFile || (locale === 'fa' ? 'فایلی باز نیست' : 'No file open')}</span>{dirty && <i>●</i>}<button disabled={!activeFile} onClick={runActive}><Play size={13} />{locale === 'fa' ? 'اجرا' : 'Run'}</button></div><textarea className="code-editor" dir="ltr" aria-label={locale === 'fa' ? 'ویرایشگر کد' : 'Code editor'} spellCheck={false} disabled={!activeFile} value={content} placeholder={locale === 'fa' ? 'برای شروع یک فایل را انتخاب کن.' : 'Select a file to start editing.'} onChange={(event) => { setContent(event.target.value); setDirty(true); }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void saveFile(); } }} /></div></div>
+    <div className="terminal-pane"><div className="terminal-title"><span><Terminal size={14} />TERMINAL</span><button onClick={() => setTerminal(undefined)}><Trash2 size={13} /></button></div><div className="terminal-output" dir="ltr"><pre>{terminal ? `PS ${workspace.root ?? ''}> ${terminal.command}\n${terminal.stdout}${terminal.stderr}${terminal.timedOut ? '\n[Timed out after 60 seconds]' : `\n[Process exited with code ${terminal.exitCode}]`}` : locale === 'fa' ? 'خروجی فرمان‌ها اینجا نمایش داده می‌شود.' : 'Command output appears here.'}</pre></div><div className="terminal-input" dir="ltr"><span>PS&gt;</span><input aria-label={locale === 'fa' ? 'فرمان ترمینال' : 'Terminal command'} value={command} disabled={!workspace.root || busy} onChange={(event) => setCommand(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void run(); }} placeholder="npm test" /><button disabled={!command.trim() || !workspace.root || busy} onClick={() => void run()}>{busy ? <RefreshCw className="spin" size={14} /> : <Play size={14} />}</button></div></div>
+  </section>;
 }
 
 type LocalModuleKind = 'agents' | 'automations' | 'mcp' | 'memory';

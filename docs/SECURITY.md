@@ -9,6 +9,9 @@
 - External side effects use an idempotency ledger. `reserved` or `unknown-outcome` operations must be reconciled before retry.
 - Paid use requires explicit configuration. A task can be marked free-only to exclude paid providers.
 - The experimental Claude bridge is disabled by default. It calls the official native Claude Code executable, reads only public `auth status` output, strips API-key environment variables before subscription verification, disables tools/MCP, and never reads Claude credential stores.
+- Chat requests are validated and bounded in the main process. Credentials and subscription tokens never cross into the renderer.
+- The coding workspace only reads or writes paths contained by the folder the user selected. Dependency/build directories are skipped and individual files are limited to 2 MB.
+- Terminal commands run only after direct user submission, inside the selected project folder, with bounded output and a 60-second timeout. They are not started automatically by chat responses.
 
 Known gaps before production distribution:
 

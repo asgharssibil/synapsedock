@@ -204,6 +204,18 @@ export class WorkspaceDatabase {
     this.persist();
   }
 
+  getStringSetting(key: string): string | undefined {
+    const value = this.value<string>(`SELECT value_json FROM settings WHERE key = ${this.quote(key)}`);
+    if (!value) return undefined;
+    try { const parsed = JSON.parse(value); return typeof parsed === 'string' ? parsed : undefined; }
+    catch { return undefined; }
+  }
+
+  setStringSetting(key: string, value: string): void {
+    this.db.run('INSERT OR REPLACE INTO settings (key, value_json) VALUES (?, ?)', [key, JSON.stringify(value)]);
+    this.persist();
+  }
+
   markClaudeCliConnection(version: string, authMethod: string): void {
     this.upsertAccount({
       id: 'claude-cli-subscription', provider: 'anthropic', displayName: 'Claude via Claude Code',

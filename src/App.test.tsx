@@ -30,7 +30,15 @@ beforeEach(() => {
     getSnapshot: vi.fn().mockResolvedValue(initialSnapshot), getChatGptStatus: vi.fn().mockResolvedValue({ connected: false, planUsage: false }),
     getClaudeCliStatus: vi.fn().mockResolvedValue({ enabled: false, installed: true, loggedIn: false, version: '2.1.300' }),
     createTask: vi.fn(), runScenario: vi.fn(), testConnection: vi.fn(), testOllama: vi.fn(), signInChatGpt: vi.fn(), signOutChatGpt: vi.fn(),
-    setClaudeCliEnabled: vi.fn(), startClaudeCliLogin: vi.fn(), verifyClaudeCli: vi.fn(), getRuntimeInfo: vi.fn(),
+    setClaudeCliEnabled: vi.fn(), startClaudeCliLogin: vi.fn(), verifyClaudeCli: vi.fn(),
+    getChatProviders: vi.fn().mockResolvedValue([{ id: 'openai', name: 'OpenAI', connected: true, method: 'api', defaultModel: 'gpt-test', models: ['gpt-test'] }]),
+    sendChat: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-test', content: 'پاسخ واقعی آزمایشی' }),
+    getCodeWorkspace: vi.fn().mockResolvedValue({ root: 'C:\\project', files: ['src/app.ts'] }),
+    chooseCodeWorkspace: vi.fn().mockResolvedValue({ root: 'C:\\project', files: ['src/app.ts'] }),
+    readWorkspaceFile: vi.fn().mockResolvedValue({ path: 'src/app.ts', content: 'const ready = false;' }),
+    saveWorkspaceFile: vi.fn().mockResolvedValue({ root: 'C:\\project', files: ['src/app.ts'] }),
+    runWorkspaceCommand: vi.fn().mockResolvedValue({ command: 'npm test', stdout: 'ok', stderr: '', exitCode: 0, timedOut: false }),
+    getRuntimeInfo: vi.fn(),
   };
   Object.defineProperty(window, 'desktop', { configurable: true, value: desktop });
 });
@@ -38,8 +46,31 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('desktop renderer user flows', () => {
-  it('renders the persisted dashboard and clearly labels mock providers', async () => {
+  it('sends a real provider request from the primary chat box and renders its answer', async () => {
+    const user = userEvent.setup();
     render(<App />);
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
+    const composer = screen.getByLabelText('پیام چت');
+    await user.type(composer, 'یک تابع بنویس');
+    await user.keyboard('{Control>}{Enter}{/Control}');
+    expect(desktop.sendChat).toHaveBeenCalledWith({ provider: 'openai', model: 'gpt-test', messages: [{ role: 'user', content: 'یک تابع بنویس' }] });
+    expect(await screen.findByText('پاسخ واقعی آزمایشی')).toBeTruthy();
+  });
+
+  it('guides a disconnected chat user to the connection screen', async () => {
+    const user = userEvent.setup();
+    desktop.getChatProviders.mockResolvedValue([{ id: 'openai', name: 'OpenAI', connected: false, method: 'api', defaultModel: 'gpt-test', models: ['gpt-test'] }]);
+    render(<App />);
+    expect(await screen.findByText('ابتدا یک حساب یا API را متصل کن.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'رفتن به اتصال‌ها' }));
+    expect(await screen.findByText('اتصال‌های رسمی')).toBeTruthy();
+  });
+
+  it('renders the persisted dashboard and clearly labels mock providers', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByText('چه چیزی می‌خواهی بسازیم؟')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'نمای کلی' }));
     expect(await screen.findByText('سلام، آمادهٔ ادامه‌ایم')).toBeTruthy();
     expect(screen.getAllByText('GPT Simulation').length).toBeGreaterThan(0);
     expect(screen.getByText(/فقط Mock هستند/)).toBeTruthy();
@@ -48,7 +79,7 @@ describe('desktop renderer user flows', () => {
   it('navigates to official connections without exposing a credential value', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
     expect(screen.getByText('اتصال‌های رسمی')).toBeTruthy();
     const keyInput = screen.getByLabelText('کلید API') as HTMLInputElement;
@@ -61,7 +92,7 @@ describe('desktop renderer user flows', () => {
     const user = userEvent.setup();
     desktop.signInChatGpt.mockResolvedValue({ connected: true, planUsage: true, email: 'user@example.com' });
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
     await user.click(screen.getByRole('button', { name: 'Continue with ChatGPT' }));
     expect(desktop.signInChatGpt).toHaveBeenCalledOnce();
@@ -73,7 +104,7 @@ describe('desktop renderer user flows', () => {
     const user = userEvent.setup();
     desktop.setClaudeCliEnabled.mockResolvedValue({ enabled: true, installed: true, loggedIn: false, version: '2.1.300' });
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
     expect(screen.getByText(/پل SynapseDock غیررسمی است/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'پذیرش ریسک و فعال‌سازی' }));
@@ -86,7 +117,7 @@ describe('desktop renderer user flows', () => {
     desktop.getClaudeCliStatus.mockResolvedValue({ enabled: true, installed: true, loggedIn: false, version: '2.1.300' });
     desktop.startClaudeCliLogin.mockResolvedValue({ launched: true, message: 'opened' });
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
     await user.click(await screen.findByRole('button', { name: 'ورود رسمی Claude' }));
     expect(desktop.startClaudeCliLogin).toHaveBeenCalledOnce();
@@ -100,7 +131,7 @@ describe('desktop renderer user flows', () => {
     desktop.verifyClaudeCli.mockResolvedValue({ ok: true, message: 'verified', response: 'SYNAPSEDOCK_CLAUDE_OK' });
     desktop.setClaudeCliEnabled.mockResolvedValue({ enabled: false, installed: true, loggedIn: true, authMethod: 'claude.ai', version: '2.1.300' });
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'اتصال‌ها' }));
     await user.click(await screen.findByRole('button', { name: 'تأیید با یک درخواست' }));
     expect(desktop.verifyClaudeCli).toHaveBeenCalledOnce();
@@ -116,7 +147,7 @@ describe('desktop renderer user flows', () => {
     };
     desktop.createTask.mockResolvedValue(created);
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'وظیفهٔ جدید' }));
     await user.type(screen.getByLabelText('عنوان'), 'پروژه آزمایشی');
     await user.type(screen.getByLabelText('هدف و معیار پایان'), 'ادامه از checkpoint');
@@ -128,16 +159,16 @@ describe('desktop renderer user flows', () => {
   it('switches the interface from RTL Persian to LTR English', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'EN' }));
-    expect(await screen.findByText('Welcome back')).toBeTruthy();
+    expect(await screen.findByText('What should we build?')).toBeTruthy();
     expect(document.documentElement.dir).toBe('ltr');
   });
 
   it('keeps settings visible and persists language and theme choices', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'تنظیمات' }));
     expect(screen.getByRole('heading', { name: 'تنظیمات' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /English/ }));
@@ -147,22 +178,32 @@ describe('desktop renderer user flows', () => {
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
-  it('provides a persistent local coding scratchpad', async () => {
+  it('opens, edits, saves and runs files in the coding workspace', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'فضای کدنویسی' }));
+    await user.click(await screen.findByRole('button', { name: /src\/app.ts/ }));
     const editor = screen.getByLabelText('ویرایشگر کد');
     await user.clear(editor);
     await user.type(editor, 'const ready = true;');
-    await user.click(screen.getByRole('button', { name: /ذخیره محلی/ }));
-    expect(localStorage.getItem('synapsedock.code.draft')).toBe('const ready = true;');
+    await user.click(screen.getByRole('button', { name: 'ذخیره' }));
+    expect(desktop.saveWorkspaceFile).toHaveBeenCalledWith({ path: 'src/app.ts', content: 'const ready = true;' });
+    await user.click(screen.getByRole('button', { name: 'اجرا' }));
+    expect(desktop.runWorkspaceCommand).toHaveBeenCalledWith('npx tsx "src/app.ts"');
+    const terminal = screen.getByLabelText('فرمان ترمینال');
+    await user.clear(terminal);
+    await user.type(terminal, 'npm test');
+    await user.keyboard('{Enter}');
+    expect(desktop.runWorkspaceCommand).toHaveBeenCalledWith('npm test');
+    await user.click(screen.getByRole('button', { name: 'پرسش از AI' }));
+    expect((await screen.findByLabelText('پیام چت') as HTMLTextAreaElement).value).toContain('const ready = true;');
   });
 
   it('opens formerly placeholder modules and persists a local agent profile', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: /عامل‌ها/ }));
     const editor = screen.getByLabelText('عامل‌ها');
     await user.type(editor, 'Reviewer | Read-only review');
@@ -173,7 +214,7 @@ describe('desktop renderer user flows', () => {
   it('validates MCP JSON locally and exposes the security view', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: /MCP و افزونه‌ها/ }));
     const editor = screen.getByLabelText('MCP و افزونه‌ها');
     await user.clear(editor);
@@ -188,7 +229,7 @@ describe('desktop renderer user flows', () => {
     const user = userEvent.setup();
     desktop.testConnection.mockResolvedValue({ ok: true, message: 'verified', models: ['kimi-k3'] });
     render(<App />);
-    await screen.findByText('سلام، آمادهٔ ادامه‌ایم');
+    await screen.findByText('چه چیزی می‌خواهی بسازیم؟');
     await user.click(screen.getByRole('button', { name: 'تنظیمات' }));
     expect(screen.getByText('Kimi / Moonshot')).toBeTruthy();
     expect(screen.getByText('Runway')).toBeTruthy();

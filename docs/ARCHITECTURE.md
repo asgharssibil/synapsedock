@@ -11,7 +11,8 @@ Sandboxed React renderer
 Electron main process ── CredentialVault (OS safeStorage)
         │
         ├── WorkspaceDatabase (SQLite)
-        ├── Provider adapters (official API / local / mock)
+        ├── Provider chat adapters (official API / subscription / local)
+        ├── Project file + bounded command workspace
         ├── Persistent task & checkpoint services
         └── External-operation idempotency ledger
                 │
@@ -39,7 +40,7 @@ Tasks, checkpoints, retry timestamps, and external-operation states live in SQLi
 ## Next architectural slices
 
 1. Worker process and OS startup scheduling for true background auto-resume.
-2. Streaming provider contract plus OpenAI Responses and Gemini adapters.
-3. Project workspace, terminal, Git, file policy, and tool-capability manifests.
+2. Streaming provider contract and normalized token/usage reporting.
+3. Git integration, richer file policy, diff review, and tool-capability manifests.
 4. MCP client/server registry with OAuth and explicit per-tool grants.
 5. Email and browser integrations behind idempotency and approval gates.

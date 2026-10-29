@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
 import { CredentialVault } from './credential-vault';
 import { WorkspaceDatabase } from './database';
 import { testApiConnection, testOllamaConnection } from './providers';
@@ -8,11 +8,17 @@ import { parseConnectionInput, parseTaskInput } from './validation';
 import { isNavigationAllowed, SECURE_WEB_PREFERENCES } from './security-policy';
 import { ChatGptOAuth } from './chatgpt-oauth';
 import { ClaudeCliAdapter } from './claude-cli';
+import { AiChatService, DEFAULT_CHAT_MODELS } from './ai-chat';
+import { CodeWorkspaceService } from './code-workspace';
+import { PROVIDER_CATALOG } from '../src/core/provider-catalog';
+import type { ChatRequest, WorkspaceFile } from '../src/shared/api';
 
 let database: WorkspaceDatabase;
 let vault: CredentialVault;
 let chatGptOAuth: ChatGptOAuth;
 let claudeCli: ClaudeCliAdapter;
+let aiChat: AiChatService;
+let codeWorkspace: CodeWorkspaceService;
 const smokeDirectory = process.env.UAIW_SMOKE_DIR ? path.resolve(process.env.UAIW_SMOKE_DIR) : undefined;
 const qaDataDirectory = process.env.UAIW_QA_DATA_DIR ? path.resolve(process.env.UAIW_QA_DATA_DIR) : undefined;
 const smokeVariant = process.env.UAIW_SMOKE_VARIANT;
@@ -78,6 +84,43 @@ function registerIpc(): void {
     if (result.ok) database.markClaudeCliConnection(result.version ?? 'unknown', result.authMethod ?? 'unknown');
     return result;
   });
+  ipcMain.handle('chat:providers', async () => {
+    const snapshot = database.snapshot();
+    const chatGpt = chatGptOAuth.getStatus();
+    const claude = await claudeCli.status(database.getBooleanSetting('experimental.claude-cli.enabled'));
+    const options = [
+      { id: 'chatgpt' as const, name: 'ChatGPT subscription', connected: chatGpt.connected && chatGpt.planUsage, method: 'subscription' as const, defaultModel: DEFAULT_CHAT_MODELS.chatgpt, models: [DEFAULT_CHAT_MODELS.chatgpt], detail: chatGpt.connected ? (chatGpt.planUsage ? 'Plan access connected' : 'Plan permission missing') : 'Sign in from Connections' },
+      { id: 'claude-cli' as const, name: 'Claude Pro / Max', connected: claude.enabled && claude.loggedIn, method: 'subscription' as const, defaultModel: DEFAULT_CHAT_MODELS['claude-cli'], models: [DEFAULT_CHAT_MODELS['claude-cli']], detail: claude.detail },
+      ...PROVIDER_CATALOG.filter((provider) => provider.capabilities.includes('chat')).map((provider) => {
+        const account = snapshot.accounts.find((item) => item.id === `${provider.id}-api`);
+        const discovered = account?.model.split(',').map((item) => item.trim()).filter((item) => item && !/discover|unavailable/i.test(item)) ?? [];
+        const fallback = DEFAULT_CHAT_MODELS[provider.id];
+        return { id: provider.id, name: provider.name, connected: Boolean(vault.get(`${provider.id}:api-key`)), method: 'api' as const, defaultModel: fallback, models: [...new Set([fallback, ...discovered].filter(Boolean))] };
+      }),
+      { id: 'ollama' as const, name: 'Ollama Local', connected: Boolean(snapshot.accounts.find((item) => item.id === 'ollama-local')?.connected), method: 'local' as const, defaultModel: DEFAULT_CHAT_MODELS.ollama, models: [DEFAULT_CHAT_MODELS.ollama], detail: 'Local runtime at 127.0.0.1' },
+    ];
+    return options;
+  });
+  ipcMain.handle('chat:send', (_event, input: ChatRequest) => aiChat.send(input));
+  ipcMain.handle('code:workspace', () => codeWorkspace.state());
+  ipcMain.handle('code:choose-workspace', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory', 'createDirectory'] }) : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+    if (!result.canceled && result.filePaths[0]) {
+      codeWorkspace.setRoot(result.filePaths[0]);
+      database.setStringSetting('code.workspace.root', result.filePaths[0]);
+    }
+    return codeWorkspace.state();
+  });
+  ipcMain.handle('code:read-file', (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string') throw new Error('Invalid workspace path.');
+    return codeWorkspace.read(filePath);
+  });
+  ipcMain.handle('code:save-file', (_event, file: WorkspaceFile) => codeWorkspace.save(file));
+  ipcMain.handle('code:run-command', (_event, command: unknown) => {
+    if (typeof command !== 'string') throw new Error('Invalid command.');
+    return codeWorkspace.run(command);
+  });
   ipcMain.handle('runtime:info', () => ({ platform: process.platform, version: app.getVersion(), dataPath: app.getPath('userData') }));
 }
 
@@ -112,6 +155,11 @@ async function createWindow(): Promise<void> {
       }
       const runtime = await window.desktop.getRuntimeInfo();
       const claudeCliStatus = await window.desktop.getClaudeCliStatus();
+      const chatProviders = await window.desktop.getChatProviders();
+      const codeWorkspace = await window.desktop.getCodeWorkspace();
+      const smokeFile = codeWorkspace.files.includes('smoke.js') ? await window.desktop.readWorkspaceFile('smoke.js') : undefined;
+      if (smokeFile) await window.desktop.saveWorkspaceFile({ path: 'smoke.js', content: smokeFile.content + '\\n// saved by E2E' });
+      const commandResult = codeWorkspace.root ? await window.desktop.runWorkspaceCommand('Write-Output SYNAPSEDOCK_TERMINAL_OK') : undefined;
       await new Promise((resolve) => setTimeout(resolve, 200));
       const before = await window.desktop.getSnapshot();
       const after = await window.desktop.createTask({ title: 'Electron E2E task', goal: 'Verify preload, IPC, SQLite and renderer.', freeOnly: true });
@@ -124,6 +172,9 @@ async function createWindow(): Promise<void> {
         text: document.body.innerText.slice(0, 2000),
         runtime,
         claudeCliStatus,
+        chatProviderCount: chatProviders.length,
+        codeWorkspaceReady: Boolean(codeWorkspace.root && smokeFile?.content.includes('smoke')),
+        terminalReady: Boolean(commandResult?.stdout.includes('SYNAPSEDOCK_TERMINAL_OK') && commandResult.exitCode === 0),
         accountCount: before.accounts.length,
         tasksBefore: before.tasks.length,
         tasksAfter: after.tasks.length,
@@ -154,6 +205,16 @@ app.whenReady().then(async () => {
   const claudeWorkingDirectory = path.join(dataPath, 'claude-bridge');
   fs.mkdirSync(claudeWorkingDirectory, { recursive: true });
   claudeCli = new ClaudeCliAdapter(claudeWorkingDirectory);
+  aiChat = new AiChatService(vault, chatGptOAuth, claudeCli);
+  codeWorkspace = new CodeWorkspaceService();
+  const savedWorkspace = database.getStringSetting('code.workspace.root');
+  if (savedWorkspace && fs.existsSync(savedWorkspace)) codeWorkspace.setRoot(savedWorkspace);
+  if (smokeDirectory) {
+    const smokeWorkspace = path.join(smokeDirectory, 'code-workspace');
+    fs.mkdirSync(smokeWorkspace, { recursive: true });
+    fs.writeFileSync(path.join(smokeWorkspace, 'smoke.js'), 'console.log("smoke");', 'utf8');
+    codeWorkspace.setRoot(smokeWorkspace);
+  }
   registerIpc();
   try { await createWindow(); }
   catch (error) {

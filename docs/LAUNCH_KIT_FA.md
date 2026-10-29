@@ -5,13 +5,13 @@
 ## لینک‌های اصلی
 
 - مخزن: https://github.com/asgharssibil/synapsedock
-- دانلود مستقیم ویندوز: https://github.com/asgharssibil/synapsedock/releases/download/v0.2.0/SynapseDock-Setup-0.2.0.exe
-- نسخه منتشرشده: https://github.com/asgharssibil/synapsedock/releases/tag/v0.2.0
+- دانلود مستقیم ویندوز: https://github.com/asgharssibil/synapsedock/releases/download/v0.3.0/SynapseDock-Setup-0.3.0.exe
+- نسخه منتشرشده: https://github.com/asgharssibil/synapsedock/releases/tag/v0.3.0
 - ثبت بازخورد: https://github.com/asgharssibil/synapsedock/issues/new
 
 ## معرفی کوتاه فارسی
 
-SynapseDock یک فضای کاری دسکتاپ برای ویندوز است که وضعیت ارائه‌دهنده‌های هوش مصنوعی، سهمیه‌ها، وظایف ماندگار، نقاط بازیابی و سناریوهای failover را در یک رابط فارسی/انگلیسی جمع می‌کند. نسخه ۰.۱ یک پایه محلی و امن است؛ ارائه‌دهنده‌های آزمایشی با برچسب Mock مشخص‌اند و برنامه ادعای اتصال واقعی به اشتراک‌های وب را ندارد.
+SynapseDock یک فضای کاری دسکتاپ ویندوزی برای چت واقعی با چند ارائه‌دهنده هوش مصنوعی و کدنویسی روی پروژه‌های محلی است. نسخه ۰.۳ فایل‌گردان، ادیتور، ترمینال پروژه، اتصال ChatGPT و Claude، APIهای متنی و Ollama را در یک رابط فارسی/انگلیسی جمع می‌کند.
 
 ## متن کوتاه انگلیسی
 
